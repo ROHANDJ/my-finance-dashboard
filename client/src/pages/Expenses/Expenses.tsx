@@ -217,7 +217,7 @@ const Expenses: React.FC = () => {
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   const summaryQuery = useQuery<ExpenseSummary>('expense-summary', fetchSummary, {
-    onError: () => toast.error('Failed to load expense summary'),
+    onError: () => { toast.error('Failed to load expense summary'); },
   });
 
   const expenseParams: Record<string, string> = {};
@@ -229,17 +229,17 @@ const Expenses: React.FC = () => {
   const expensesQuery = useQuery(
     ['expenses', expenseParams],
     () => fetchExpenses(expenseParams),
-    { onError: () => toast.error('Failed to load expenses') }
+    { onError: () => { toast.error('Failed to load expenses'); } }
   );
 
   const analyticsQuery = useQuery('expense-analytics', fetchAnalytics, {
     enabled: activeTab === 1,
-    onError: () => toast.error('Failed to load analytics'),
+    onError: () => { toast.error('Failed to load analytics'); },
   });
 
   const budgetsQuery = useQuery<BudgetItem[]>('expense-budgets', fetchBudgets, {
     enabled: activeTab === 2,
-    onError: () => toast.error('Failed to load budgets'),
+    onError: () => { toast.error('Failed to load budgets'); },
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ const Expenses: React.FC = () => {
           tags: '',
         });
       },
-      onError: () => toast.error('Failed to add expense'),
+      onError: () => { toast.error('Failed to add expense'); },
     }
   );
 
@@ -274,7 +274,7 @@ const Expenses: React.FC = () => {
         queryClient.invalidateQueries('expense-summary');
         toast.success('Expense deleted');
       },
-      onError: () => toast.error('Failed to delete expense'),
+      onError: () => { toast.error('Failed to delete expense'); },
     }
   );
 
@@ -286,7 +286,7 @@ const Expenses: React.FC = () => {
         queryClient.invalidateQueries('expense-budgets');
         toast.success('Budget updated');
       },
-      onError: () => toast.error('Failed to update budget'),
+      onError: () => { toast.error('Failed to update budget'); },
     }
   );
 

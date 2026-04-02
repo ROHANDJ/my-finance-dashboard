@@ -180,7 +180,7 @@ const EODDashboard: React.FC = () => {
     {
       refetchInterval: REFRESH_INTERVAL_MS,
       onSuccess: () => setLastUpdated(new Date()),
-      onError: () => toast.error('Failed to load EOD summary'),
+      onError: () => { toast.error('Failed to load EOD summary'); },
     }
   );
 

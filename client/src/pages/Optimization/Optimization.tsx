@@ -295,7 +295,7 @@ const Optimization: React.FC = () => {
     'optimization',
     fetchOptimization,
     {
-      onError: () => toast.error('Failed to load optimization data'),
+      onError: () => { toast.error('Failed to load optimization data'); },
       staleTime: 5 * 60 * 1000,
     }
   );
@@ -307,7 +307,7 @@ const Optimization: React.FC = () => {
         queryClient.invalidateQueries('optimization');
         toast.success('Rebalancing recommendations applied');
       },
-      onError: () => toast.error('Failed to apply rebalancing'),
+      onError: () => { toast.error('Failed to apply rebalancing'); },
     }
   );
 

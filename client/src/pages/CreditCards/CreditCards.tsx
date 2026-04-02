@@ -302,7 +302,7 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
     () => fetchTransactions(card!._id),
     {
       enabled: !!card && open,
-      onError: () => toast.error('Failed to load transactions'),
+      onError: () => { toast.error('Failed to load transactions'); },
     }
   );
 
@@ -324,7 +324,7 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
           date: new Date().toISOString().slice(0, 10),
         });
       },
-      onError: () => toast.error('Failed to add transaction'),
+      onError: () => { toast.error('Failed to add transaction'); },
     }
   );
 
@@ -548,7 +548,7 @@ const CreditCards: React.FC = () => {
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   const cardsQuery = useQuery<CreditCardData[]>('credit-cards', fetchCards, {
-    onError: () => toast.error('Failed to load credit cards'),
+    onError: () => { toast.error('Failed to load credit cards'); },
   });
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
@@ -565,7 +565,7 @@ const CreditCards: React.FC = () => {
         setOpenAddDialog(false);
         setForm(defaultForm);
       },
-      onError: () => toast.error('Failed to add card'),
+      onError: () => { toast.error('Failed to add card'); },
     }
   );
 
@@ -582,7 +582,7 @@ const CreditCards: React.FC = () => {
         toast.success('Card updated');
         setEditCard(null);
       },
-      onError: () => toast.error('Failed to update card'),
+      onError: () => { toast.error('Failed to update card'); },
     }
   );
 
@@ -593,7 +593,7 @@ const CreditCards: React.FC = () => {
         queryClient.invalidateQueries('credit-cards');
         toast.success('Card deleted');
       },
-      onError: () => toast.error('Failed to delete card'),
+      onError: () => { toast.error('Failed to delete card'); },
     }
   );
 
