@@ -1,8 +1,14 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd client && npm install",
+  "installCommand": "npm install && cd client && npm install --include=dev",
   "buildCommand": "cd client && CI=false npm run build",
   "outputDirectory": "client/build",
+  "build": {
+    "env": {
+      "NPM_CONFIG_PRODUCTION": "false",
+      "CI": "false"
+    }
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/server" }
   ]
