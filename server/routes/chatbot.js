@@ -3,9 +3,10 @@ const OpenAI = require('openai');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 class ChatbotService {
   constructor() {
@@ -42,6 +43,7 @@ Always be professional, accurate, and user-friendly like the Groww app interface
   }
 
   async getResponse(userMessage, userId, context = {}) {
+    if (!openai) return 'Chatbot is not configured (missing API key). Other features work normally.';
     try {
       const messages = [
         { role: 'system', content: this.systemPrompt },
@@ -140,6 +142,7 @@ Always be professional, accurate, and user-friendly like the Groww app interface
   }
 
   async getStockInsights(symbol, marketData) {
+    if (!openai) return 'Chatbot is not configured (missing API key).';
     const prompt = `Analyze the following stock and provide insights:
 
 Stock: ${symbol}
@@ -174,6 +177,7 @@ Please provide:
   }
 
   async getPortfolioInsights(portfolioData) {
+    if (!openai) return 'Chatbot is not configured (missing API key).';
     const prompt = `Analyze this portfolio and provide comprehensive insights:
 
 Portfolio Summary:
@@ -213,6 +217,7 @@ Please provide:
   }
 
   async getIPOInsights(ipoData) {
+    if (!openai) return 'Chatbot is not configured (missing API key).';
     const prompt = `Analyze this IPO and provide investment insights:
 
 IPO Details:
