@@ -24,10 +24,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (isAuthenticated) {
-      socketRef.current = io('http://localhost:5000', {
+      const socketUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000';
+      socketRef.current = io(socketUrl, {
         auth: {
           token: localStorage.getItem('token'),
         },
+        transports: ['polling'],
       });
 
       socketRef.current.on('connect', () => {

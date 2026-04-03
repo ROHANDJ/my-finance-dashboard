@@ -80,8 +80,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Only listen when running directly (not in Vercel serverless)
+if (process.env.VERCEL !== '1') {
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
-module.exports = { app, io };
+module.exports = app;
