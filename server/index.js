@@ -46,17 +46,27 @@ app.use(express.urlencoded({ extended: true }));
 
 console.log('Server running in demo mode (no database)');
 
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/stocks', require('./routes/stocks'));
-app.use('/api/portfolio', require('./routes/portfolio'));
-app.use('/api/mutualfunds', require('./routes/mutualfunds'));
-app.use('/api/ipo', require('./routes/ipo'));
-app.use('/api/chatbot', require('./routes/chatbot'));
-app.use('/api/trading', require('./routes/trading'));
-app.use('/api/expenses', require('./routes/expenses'));
-app.use('/api/creditcards', require('./routes/creditcards'));
-app.use('/api/eod', require('./routes/eod'));
-app.use('/api/optimization', require('./routes/optimization'));
+function safeRoute(path, routeFile) {
+  try {
+    app.use(path, require(routeFile));
+    console.log(`Route loaded: ${path}`);
+  } catch (err) {
+    console.error(`Failed to load route ${path}:`, err.message);
+    app.use(path, (req, res) => res.status(503).json({ message: `${path} is temporarily unavailable` }));
+  }
+}
+
+safeRoute('/api/auth',        './routes/auth');
+safeRoute('/api/stocks',      './routes/stocks');
+safeRoute('/api/portfolio',   './routes/portfolio');
+safeRoute('/api/mutualfunds', './routes/mutualfunds');
+safeRoute('/api/ipo',         './routes/ipo');
+safeRoute('/api/chatbot',     './routes/chatbot');
+safeRoute('/api/trading',     './routes/trading');
+safeRoute('/api/expenses',    './routes/expenses');
+safeRoute('/api/creditcards', './routes/creditcards');
+safeRoute('/api/eod',         './routes/eod');
+safeRoute('/api/optimization','./routes/optimization');
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
