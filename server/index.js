@@ -82,9 +82,20 @@ io.on('connection', (socket) => {
   });
 });
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Stock Portfolio Analyzer API is running' });
-});
+// Serve React frontend in production (Railway)
+const path = require('path');
+const fs = require('fs');
+const buildPath = path.join(__dirname, '../client/build');
+if (fs.existsSync(buildPath)) {
+  app.use(express.static(buildPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({ message: 'Stock Portfolio Analyzer API is running' });
+  });
+}
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

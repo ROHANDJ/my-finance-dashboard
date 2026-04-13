@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacksConfig]
+buildCmd = "cd client && npm install --production=false && CI=false npm run build"
+
+[deploy]
+startCmd = "node server/index.js"
+healthcheckPath = "/"
+restartPolicyType = "on_failure"
