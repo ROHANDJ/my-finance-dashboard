@@ -46,8 +46,8 @@ interface IPOData {
   symbol: string;
   companyName: string;
   status: string;
-  openDate: string;
-  priceRange: { min: number; max: number };
+  timeline?: { openDate?: string; closeDate?: string; listingDate?: string };
+  offering?: { priceRange?: { min: number; max: number }; finalPrice?: number };
 }
 
 const Dashboard: React.FC = () => {
@@ -363,7 +363,11 @@ const Dashboard: React.FC = () => {
                         variant="outlined"
                       />
                       <Typography variant="body2" mt={1}>
-                        ₹{ipo.priceRange.min} - ₹{ipo.priceRange.max}
+                        {ipo.offering?.priceRange
+                          ? `₹${ipo.offering.priceRange.min} - ₹${ipo.offering.priceRange.max}`
+                          : ipo.offering?.finalPrice
+                          ? `₹${ipo.offering.finalPrice}`
+                          : 'TBA'}
                       </Typography>
                     </Box>
                   </Box>
