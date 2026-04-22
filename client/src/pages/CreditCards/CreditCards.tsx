@@ -119,7 +119,7 @@ const daysUntil = (dateStr: string) => {
 
 const fetchCards = async (): Promise<CreditCardData[]> => {
   const { data } = await axios.get('/api/creditcards');
-  return data.cards ?? data;
+  return data.creditCards ?? data.cards ?? [];
 };
 
 const fetchTransactions = async (cardId: string): Promise<Transaction[]> => {
