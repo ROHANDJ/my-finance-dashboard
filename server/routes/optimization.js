@@ -22,208 +22,139 @@ function getDemoHealthScore() {
   return 72; // out of 100
 }
 
+// Matches TypeScript: SuggestionType = 'diversification'|'risk'|'profit'|'rebalance'|'general'
+// Priority uppercase to match priorityConfig keys: 'HIGH'|'MEDIUM'|'LOW'
+// potentialImpact is a number (percentage), actionLabel is the CTA string
 const SUGGESTIONS = [
   {
+    _id: 'sug_001',
     type: 'diversification',
-    priority: 'high',
+    priority: 'HIGH',
     title: 'Over-concentration in IT Sector',
     description: 'Your portfolio has 42% allocation in IT stocks (INFY, TCS, WIPRO). A single-sector downturn could significantly impact returns. Consider diversifying into FMCG, banking, or healthcare.',
-    potentialImpact: 'Reduce portfolio volatility by ~18% and improve risk-adjusted returns',
-    action: 'Reduce IT exposure to 25% and reallocate to FMCG & pharma ETFs'
+    potentialImpact: 18,
+    actionLabel: 'Reduce IT exposure to 25% and reallocate to FMCG & pharma ETFs'
   },
   {
-    type: 'rebalancing',
-    priority: 'high',
+    _id: 'sug_002',
+    type: 'rebalance',
+    priority: 'HIGH',
     title: 'Small-Cap Overweight',
     description: 'Small-cap stocks represent 35% of portfolio vs the recommended 15-20% for a moderate risk profile. Higher allocation increases drawdown risk during market corrections.',
-    potentialImpact: 'Smoother returns and lower max drawdown during market stress',
-    action: 'Trim small-cap positions gradually and move proceeds to large-cap index fund'
+    potentialImpact: 14,
+    actionLabel: 'Trim small-cap positions gradually and move proceeds to large-cap index fund'
   },
   {
-    type: 'tax_saving',
-    priority: 'high',
+    _id: 'sug_003',
+    type: 'profit',
+    priority: 'HIGH',
     title: 'Harvest Short-Term Losses',
     description: 'WIPRO is at a 12% unrealised loss. Booking this loss before March 31 can offset capital gains from INFY (+22%) and reduce your FY tax liability.',
-    potentialImpact: 'Potential tax saving of ₹8,400–₹12,600 depending on slab',
-    action: 'Sell WIPRO (book loss), wait 31 days to avoid wash-sale, then re-enter if outlook improves'
+    potentialImpact: 12,
+    actionLabel: 'Sell WIPRO (book loss), wait 31 days, then re-enter if outlook improves'
   },
   {
-    type: 'opportunity',
-    priority: 'medium',
+    _id: 'sug_004',
+    type: 'risk',
+    priority: 'MEDIUM',
     title: 'Add Defensive Exposure via Gold ETFs',
     description: 'Your portfolio has zero allocation to commodities or gold. Gold typically moves inversely to equities and can act as a hedge during market downturns.',
-    potentialImpact: 'Portfolio correlation drops; hedge against INR depreciation and inflation',
-    action: 'Allocate 5-7% to Sovereign Gold Bonds or SBI Gold ETF'
+    potentialImpact: 8,
+    actionLabel: 'Allocate 5-7% to Sovereign Gold Bonds or SBI Gold ETF'
   },
   {
-    type: 'sip',
-    priority: 'medium',
+    _id: 'sug_005',
+    type: 'general',
+    priority: 'MEDIUM',
     title: 'Increase SIP Amount to Match Goal',
     description: 'At the current SIP amount (₹10,000/month) and assumed 12% CAGR, you will fall short of your ₹1 Cr corpus goal by age 45 by ~₹18L.',
-    potentialImpact: 'Increasing SIP by ₹3,000/month bridges the gap and overshoots the goal by 8%',
-    action: 'Step up SIP by ₹3,000/month in a large-cap or flexi-cap fund'
+    potentialImpact: 6,
+    actionLabel: 'Step up SIP by ₹3,000/month in a large-cap or flexi-cap fund'
   },
   {
-    type: 'expense_reduction',
-    priority: 'medium',
+    _id: 'sug_006',
+    type: 'general',
+    priority: 'MEDIUM',
     title: 'Reduce Discretionary Spending',
     description: 'Shopping and entertainment together account for 38% of monthly expenses. Reducing this by 20% frees ₹2,400/month that can be invested.',
-    potentialImpact: '₹2,400/month invested for 10 years at 12% CAGR = ₹4.45L additional corpus',
-    action: 'Set a monthly shopping budget and track against it using the expense tracker'
+    potentialImpact: 5,
+    actionLabel: 'Set a monthly shopping budget and track against it using the expense tracker'
   },
   {
-    type: 'credit_card',
-    priority: 'low',
+    _id: 'sug_007',
+    type: 'risk',
+    priority: 'LOW',
     title: 'Pay Down High-Utilisation Cards First',
     description: 'HDFC Regalia shows 40.5% utilisation. Keeping utilisation below 30% improves credit score and may qualify you for a higher limit or lower interest rate.',
-    potentialImpact: 'CIBIL score improvement of 15-30 points over 3 months',
-    action: 'Make a partial payment of ₹31,460 to bring utilisation to 30%'
+    potentialImpact: 3,
+    actionLabel: 'Make a partial payment of ₹31,460 to bring utilisation to 30%'
   }
 ];
 
+// action uppercase to match RebalanceAction = 'BUY'|'SELL'|'HOLD'
+// currentPercent/suggestedPercent to match RebalanceRow interface
 const REBALANCING = [
-  {
-    symbol: 'INFY',
-    name: 'Infosys Ltd',
-    currentAllocation: 18.5,
-    suggestedAllocation: 12.0,
-    action: 'sell',
-    reason: 'Over-allocated in IT sector; take partial profits after 22% YTD gain'
-  },
-  {
-    symbol: 'TCS',
-    name: 'Tata Consultancy Services',
-    currentAllocation: 15.2,
-    suggestedAllocation: 10.0,
-    action: 'sell',
-    reason: 'Reduce IT concentration; P/E at 28x looks stretched vs historical average'
-  },
-  {
-    symbol: 'WIPRO',
-    name: 'Wipro Ltd',
-    currentAllocation: 8.3,
-    suggestedAllocation: 5.0,
-    action: 'sell',
-    reason: 'Underperforming peers; book loss for tax harvesting'
-  },
-  {
-    symbol: 'HDFCBANK',
-    name: 'HDFC Bank Ltd',
-    currentAllocation: 10.1,
-    suggestedAllocation: 14.0,
-    action: 'buy',
-    reason: 'Banking sector recovery play; strong NIMs and credit growth expected'
-  },
-  {
-    symbol: 'SUNPHARMA',
-    name: 'Sun Pharmaceutical Industries',
-    currentAllocation: 4.2,
-    suggestedAllocation: 8.0,
-    action: 'buy',
-    reason: 'Healthcare under-represented; defensive sector with steady growth'
-  },
-  {
-    symbol: 'NESTLEIND',
-    name: 'Nestle India Ltd',
-    currentAllocation: 3.5,
-    suggestedAllocation: 6.0,
-    action: 'buy',
-    reason: 'FMCG for stability; consistent dividend payer with strong rural distribution'
-  },
-  {
-    symbol: 'RELIANCE',
-    name: 'Reliance Industries Ltd',
-    currentAllocation: 12.4,
-    suggestedAllocation: 12.0,
-    action: 'hold',
-    reason: 'Well-diversified conglomerate; current allocation is appropriate'
-  },
-  {
-    symbol: 'GOLDBEES',
-    name: 'Nippon India Gold BeES ETF',
-    currentAllocation: 0,
-    suggestedAllocation: 5.0,
-    action: 'buy',
-    reason: 'No gold exposure; add as portfolio hedge and inflation protection'
-  }
+  { symbol: 'INFY',      name: 'Infosys Ltd',                    currentPercent: 18.5, suggestedPercent: 12.0, action: 'SELL', reason: 'Over-allocated in IT; take partial profits after 22% YTD gain' },
+  { symbol: 'TCS',       name: 'Tata Consultancy Services',       currentPercent: 15.2, suggestedPercent: 10.0, action: 'SELL', reason: 'Reduce IT concentration; P/E at 28x looks stretched' },
+  { symbol: 'WIPRO',     name: 'Wipro Ltd',                       currentPercent:  8.3, suggestedPercent:  5.0, action: 'SELL', reason: 'Underperforming peers; book loss for tax harvesting' },
+  { symbol: 'HDFCBANK',  name: 'HDFC Bank Ltd',                   currentPercent: 10.1, suggestedPercent: 14.0, action: 'BUY',  reason: 'Banking recovery play; strong NIMs and credit growth' },
+  { symbol: 'SUNPHARMA', name: 'Sun Pharmaceutical Industries',   currentPercent:  4.2, suggestedPercent:  8.0, action: 'BUY',  reason: 'Healthcare under-represented; defensive sector' },
+  { symbol: 'NESTLEIND', name: 'Nestle India Ltd',                currentPercent:  3.5, suggestedPercent:  6.0, action: 'BUY',  reason: 'FMCG for stability; consistent dividend payer' },
+  { symbol: 'RELIANCE',  name: 'Reliance Industries Ltd',         currentPercent: 12.4, suggestedPercent: 12.0, action: 'HOLD', reason: 'Well-diversified conglomerate; allocation is appropriate' },
+  { symbol: 'GOLDBEES',  name: 'Nippon India Gold BeES ETF',      currentPercent:  0.0, suggestedPercent:  5.0, action: 'BUY',  reason: 'No gold exposure; add as portfolio hedge' },
 ];
 
+// Matches TaxOpportunity: { _id, symbol, holdingPeriod, unrealizedGainLoss, taxRate, suggestion, potentialTaxSaving }
 const TAX_OPTIMIZATION = [
   {
+    _id: 'tax_001',
     symbol: 'INFY',
     name: 'Infosys Ltd',
     holdingPeriod: 384,
-    gain: 48200,
-    taxRate: 10,  // LTCG above ₹1L
+    unrealizedGainLoss: 48200,
+    taxRate: 10,
+    potentialTaxSaving: 4820,
     suggestion: 'Long-term gain qualifies for 10% LTCG. Consider booking in tranches to stay within ₹1L annual exemption if possible.'
   },
   {
+    _id: 'tax_002',
     symbol: 'WIPRO',
     name: 'Wipro Ltd',
     holdingPeriod: 210,
-    gain: -14500,
-    taxRate: 15,  // STCL
+    unrealizedGainLoss: -14500,
+    taxRate: 15,
+    potentialTaxSaving: 2175,
     suggestion: 'Book short-term loss of ₹14,500 before fiscal year-end to offset short-term capital gains from other instruments.'
   },
   {
+    _id: 'tax_003',
     symbol: 'HDFCBANK',
     name: 'HDFC Bank Ltd',
     holdingPeriod: 156,
-    gain: 12300,
-    taxRate: 15,  // STCG
+    unrealizedGainLoss: 12300,
+    taxRate: 15,
+    potentialTaxSaving: 614,
     suggestion: 'If held 9 more months this becomes LTCG taxed at 10%. Consider holding to reduce tax outgo by ~₹614.'
   },
   {
+    _id: 'tax_004',
     symbol: 'TCS',
     name: 'Tata Consultancy Services',
     holdingPeriod: 420,
-    gain: 62800,
+    unrealizedGainLoss: 62800,
     taxRate: 10,
-    suggestion: 'Significant LTCG. Book ₹1L worth (exempt) this fiscal year and carry forward remainder to next FY to utilise exemption limit.'
+    potentialTaxSaving: 6280,
+    suggestion: 'Significant LTCG. Book ₹1L worth (exempt) this fiscal year and carry forward remainder to next FY.'
   }
 ];
 
+// Matches MarketOpportunity: { _id, symbol, name, reason, currentPrice, targetPrice, upsidePercent, sector }
 const MARKET_OPPORTUNITIES = [
-  {
-    symbol: 'ICICIBANK',
-    name: 'ICICI Bank Ltd',
-    reason: 'Strong Q3 results; NIM expansion and asset quality improvement. Banking sector rotation play as rate cycle peaks.',
-    currentPrice: 1087.45,
-    targetPrice: 1280.00,
-    upside: 17.7
-  },
-  {
-    symbol: 'DRREDDY',
-    name: 'Dr. Reddy\'s Laboratories',
-    reason: 'US generics pipeline gaining approvals; EBITDA margins expanding. Healthcare sector typically outperforms in election years.',
-    currentPrice: 6248.30,
-    targetPrice: 7100.00,
-    upside: 13.6
-  },
-  {
-    symbol: 'NIFTYBEES',
-    name: 'Nippon India Nifty BeES ETF',
-    reason: 'Low-cost index exposure. India macro story intact; GDP growth 7%+, FII inflows resuming after rate clarity.',
-    currentPrice: 226.40,
-    targetPrice: 260.00,
-    upside: 14.8
-  },
-  {
-    symbol: 'TATAPOWER',
-    name: 'Tata Power Company Ltd',
-    reason: 'Renewable energy capex cycle; government\'s 500 GW green energy target drives multi-year order book.',
-    currentPrice: 418.75,
-    targetPrice: 510.00,
-    upside: 21.8
-  },
-  {
-    symbol: 'BAJFINANCE',
-    name: 'Bajaj Finance Ltd',
-    reason: 'NBFC leader with diversified retail loan book. Credit card and EMI finance growth accelerating; valuations corrected 15% from peak.',
-    currentPrice: 6892.00,
-    targetPrice: 8000.00,
-    upside: 16.1
-  }
+  { _id: 'opp_001', symbol: 'ICICIBANK',  name: 'ICICI Bank Ltd',                  reason: 'Strong Q3 results; NIM expansion and asset quality improvement.',               currentPrice: 1087.45, targetPrice: 1280.00, upsidePercent: 17.7, sector: 'Banking'    },
+  { _id: 'opp_002', symbol: 'DRREDDY',    name: "Dr. Reddy's Laboratories",         reason: 'US generics pipeline gaining approvals; EBITDA margins expanding.',              currentPrice: 6248.30, targetPrice: 7100.00, upsidePercent: 13.6, sector: 'Healthcare' },
+  { _id: 'opp_003', symbol: 'NIFTYBEES',  name: 'Nippon India Nifty BeES ETF',      reason: 'Low-cost index exposure. India macro story intact; GDP growth 7%+.',             currentPrice:  226.40, targetPrice:  260.00, upsidePercent: 14.8, sector: 'Index ETF'  },
+  { _id: 'opp_004', symbol: 'TATAPOWER',  name: 'Tata Power Company Ltd',           reason: "Renewable energy capex cycle; government's 500 GW green energy target.",        currentPrice:  418.75, targetPrice:  510.00, upsidePercent: 21.8, sector: 'Energy'     },
+  { _id: 'opp_005', symbol: 'BAJFINANCE', name: 'Bajaj Finance Ltd',                reason: 'NBFC leader; credit card and EMI finance growth accelerating.',                  currentPrice: 6892.00, targetPrice: 8000.00, upsidePercent: 16.1, sector: 'NBFC'       },
 ];
 
 // ---------------------------------------------------------------------------
