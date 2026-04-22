@@ -32,3 +32,6 @@ uploads/
 
 # TypeScript
 *.tsbuildinfo
+
+.vercel
+.claude/
