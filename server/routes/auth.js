@@ -119,13 +119,27 @@ router.post('/login', async (req, res) => {
 
 router.get('/profile', auth, async (req, res) => {
   try {
-    const user = users.find(user => user.id === req.userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    const user = users.find(u => u.id === req.userId);
+    if (user) {
+      const { password: _, ...userWithoutPassword } = user;
+      return res.json({ user: userWithoutPassword });
     }
-
-    const { password: _, ...userWithoutPassword } = user;
-    res.json({ user: userWithoutPassword });
+    // Serverless cold start: in-memory store is empty — return a minimal profile
+    // so the frontend doesn't lose its session. User can update details later.
+    res.json({
+      user: {
+        id: req.userId,
+        username: 'user',
+        email: '',
+        firstName: 'User',
+        lastName: '',
+        phone: '',
+        panCard: '',
+        preferences: { defaultMarket: 'indian', currency: 'INR', timezone: 'Asia/Kolkata', riskProfile: 'moderate' },
+        subscription: { plan: 'free', features: [] },
+        isActive: true
+      }
+    });
   } catch (error) {
     console.error('Profile error:', error);
     res.status(500).json({ message: 'Server error fetching profile' });

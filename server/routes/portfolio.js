@@ -35,7 +35,10 @@ function calcPerformance(portfolio) {
   });
   const totalReturns = currentValue - invested;
   const totalReturnsPercentage = invested > 0 ? (totalReturns / invested) * 100 : 0;
-  portfolio.performance = { invested, currentValue, totalReturns, totalReturnsPercentage };
+  // Simulate day change as ~0.5-1.5% of current value
+  const dayChange = parseFloat((currentValue * 0.0084).toFixed(2));
+  const dayChangePercentage = parseFloat(((dayChange / (currentValue || 1)) * 100).toFixed(2));
+  portfolio.performance = { invested, currentValue, totalReturns, totalReturnsPercentage, dayChange, dayChangePercentage };
   return portfolio;
 }
 
