@@ -147,18 +147,16 @@ const CASUpload: React.FC = () => {
             onChange={e => e.target.files?.[0] && setFile(e.target.files[0])}
           />
 
-          {(needsPassword || password) && (
-            <TextField
-              fullWidth
-              label="PDF Password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              sx={{ mt: 2 }}
-              helperText="Usually: PAN (uppercase) + Date of Birth (DDMMYYYY) — e.g. ABCDE1234F01011990"
-              InputProps={{ startAdornment: <Lock sx={{ mr: 1, color: 'text.secondary' }} /> }}
-            />
-          )}
+          <TextField
+            fullWidth
+            label="PDF Password (if protected)"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            sx={{ mt: 2 }}
+            helperText="Usually: PAN (uppercase) + Date of Birth (DDMMYYYY) — e.g. ABCDE1234F01011990"
+            InputProps={{ startAdornment: <Lock sx={{ mr: 1, color: 'text.secondary' }} /> }}
+          />
 
           {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
 
