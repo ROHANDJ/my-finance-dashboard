@@ -7,6 +7,32 @@ const router = express.Router();
 // In-memory user store for demo
 const users = [];
 
+// Seed a dev user so devs can log in instantly without registering
+if (process.env.NODE_ENV !== 'production') {
+  bcrypt.hash('dev123', 10).then(hash => {
+    users.push({
+      id: 'dev-user',
+      username: 'devuser',
+      email: 'dev@dev.com',
+      password: hash,
+      firstName: 'Dev',
+      lastName: 'User',
+      phone: '',
+      panCard: 'DEVPAN001',
+      preferences: {
+        defaultMarket: 'indian',
+        currency: 'INR',
+        timezone: 'Asia/Kolkata',
+        notifications: { email: true, sms: false, push: true },
+        riskProfile: 'moderate'
+      },
+      subscription: { plan: 'free', features: [] },
+      isActive: true,
+      createdAt: new Date()
+    });
+  });
+}
+
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password, firstName, lastName, phone, panCard } = req.body;

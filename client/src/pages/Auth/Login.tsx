@@ -55,6 +55,18 @@ const Login: React.FC = () => {
     }
   };
 
+  const devLogin = async () => {
+    setIsLoading(true);
+    try {
+      await login('dev@dev.com', 'dev123');
+      navigate(from, { replace: true });
+    } catch (error) {
+      console.error('Dev login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Container component="main" maxWidth="xs">
       <Box
@@ -157,6 +169,19 @@ const Login: React.FC = () => {
                   'Sign In'
                 )}
               </Button>
+
+              {process.env.NODE_ENV !== 'production' && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  color="warning"
+                  sx={{ mb: 2 }}
+                  onClick={devLogin}
+                  disabled={isLoading}
+                >
+                  Dev Quick Login
+                </Button>
+              )}
 
               <Box textAlign="center">
                 <Link component={RouterLink} to="/register" variant="body2">
