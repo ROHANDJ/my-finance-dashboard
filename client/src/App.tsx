@@ -25,6 +25,7 @@ import Expenses from './pages/Expenses/Expenses';
 import CreditCards from './pages/CreditCards/CreditCards';
 import EODDashboard from './pages/EODDashboard/EODDashboard';
 import Optimization from './pages/Optimization/Optimization';
+import CASUpload from './pages/CASUpload/CASUpload';
 
 const theme = createTheme({
   palette: {
@@ -154,6 +155,7 @@ function App() {
                               <Route path="/credit-cards" element={<CreditCards />} />
                               <Route path="/eod-dashboard" element={<EODDashboard />} />
                               <Route path="/optimization" element={<Optimization />} />
+                              <Route path="/cas-upload" element={<CASUpload />} />
                             </Routes>
                           </Layout>
                         </ProtectedRoute>

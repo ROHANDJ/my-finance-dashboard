@@ -67,6 +67,7 @@ safeRoute('/api/expenses',    './routes/expenses');
 safeRoute('/api/creditcards', './routes/creditcards');
 safeRoute('/api/eod',         './routes/eod');
 safeRoute('/api/optimization','./routes/optimization');
+safeRoute('/api/cas',         './routes/cas');
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);

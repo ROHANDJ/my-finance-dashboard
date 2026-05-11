@@ -35,6 +35,7 @@ import {
   CreditCard,
   Summarize,
   AutoGraph,
+  UploadFile,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +47,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', group: 'main' },
   { text: 'EOD Summary', icon: <Summarize />, path: '/eod-dashboard', group: 'main' },
   { text: 'Portfolio', icon: <AccountBalance />, path: '/portfolio', group: 'invest' },
+  { text: 'Import CAS', icon: <UploadFile />, path: '/cas-upload', group: 'invest' },
   { text: 'Optimization', icon: <AutoGraph />, path: '/optimization', group: 'invest' },
   { text: 'Stocks', icon: <TrendingUp />, path: '/stocks', group: 'invest' },
   { text: 'Mutual Funds', icon: <ShowChart />, path: '/mutual-funds', group: 'invest' },
