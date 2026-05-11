@@ -21,7 +21,7 @@ try { app.use('/api/expenses',     require('../server/routes/expenses'));     } 
 try { app.use('/api/creditcards',  require('../server/routes/creditcards'));  } catch (e) { console.error('creditcards failed:', e.message);  app.use('/api/creditcards',  (q,s) => s.status(503).json({ error: e.message })); }
 try { app.use('/api/eod',          require('../server/routes/eod'));          } catch (e) { console.error('eod failed:', e.message);          app.use('/api/eod',          (q,s) => s.status(503).json({ error: e.message })); }
 try { app.use('/api/optimization', require('../server/routes/optimization')); } catch (e) { console.error('optimization failed:', e.message); app.use('/api/optimization', (q,s) => s.status(503).json({ error: e.message })); }
-try { app.use('/api/cas',          require('../server/routes/cas'));          } catch (e) { console.error('cas failed:', e.message);          app.use('/api/cas',          (q,s) => s.status(503).json({ error: e.message })); }
+try { app.use('/api/cas',          require('../server/routes/cas'));          } catch (e) { console.error('cas failed:', e.message, e.stack); app.use('/api/cas', (q,s) => s.status(503).json({ error: e.message, stack: e.stack })); }
 
 app.get('/api/debug', (_q, s) => s.json({ status: 'ok', ts: new Date().toISOString() }));
 app.get('/api',       (_q, s) => s.json({ message: 'FinanceHub API running' }));
