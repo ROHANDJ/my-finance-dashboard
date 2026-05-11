@@ -119,10 +119,10 @@ router.post('/upload', auth, upload.single('cas'), async (req, res) => {
   }
 
   try {
+    const providedPassword = req.body.password || '';
     const options = {};
-    // If password provided (CAS PDFs are often password-protected)
-    if (req.body.password) {
-      options.password = req.body.password;
+    if (providedPassword) {
+      options.password = providedPassword;
     }
 
     const data = await pdfParse(req.file.buffer, options);
@@ -156,10 +156,10 @@ router.post('/upload', auth, upload.single('cas'), async (req, res) => {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes('password')) {
-      return res.status(422).json({
-        message: 'This PDF is password-protected. Please provide the password.',
-        passwordRequired: true
-      });
+      const msg = providedPassword
+        ? 'Incorrect password. Common formats:\n• CAMS CAS: PAN uppercase + DOB as DDMMYYYY (e.g. ABCDE1234F01011990)\n• CDSL CAS: PAN uppercase + DOB as DDMMYYYY\n• Some CDSL PDFs: just your PAN in uppercase'
+        : 'This PDF is password-protected. Please enter the password.';
+      return res.status(422).json({ message: msg, passwordRequired: true });
     }
     console.error('CAS parse error:', err);
     res.status(500).json({ message: 'Failed to parse CAS PDF', error: err.message });

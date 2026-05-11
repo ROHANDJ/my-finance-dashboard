@@ -154,7 +154,7 @@ const CASUpload: React.FC = () => {
             value={password}
             onChange={e => setPassword(e.target.value)}
             sx={{ mt: 2 }}
-            helperText="Usually: PAN (uppercase) + Date of Birth (DDMMYYYY) — e.g. ABCDE1234F01011990"
+            helperText="Try: PAN uppercase + DOB as DDMMYYYY (e.g. ABCDE1234F01011990) · or just PAN uppercase for some CDSL PDFs"
             InputProps={{ startAdornment: <Lock sx={{ mr: 1, color: 'text.secondary' }} /> }}
           />
 
