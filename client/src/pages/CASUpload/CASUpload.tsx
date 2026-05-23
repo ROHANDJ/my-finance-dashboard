@@ -4,10 +4,12 @@ import {
   CircularProgress, Alert, Chip, Divider, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper,
   Accordion, AccordionSummary, AccordionDetails, LinearProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material';
 import {
   CloudUpload, ExpandMore, AccountBalance, ShowChart,
-  CheckCircle, Lock,
+  CheckCircle, Lock, SaveAlt,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -48,6 +50,11 @@ interface CASResult {
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
 
+interface PortfolioOption {
+  id: string;
+  name: string;
+}
+
 const CASUpload: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState('');
@@ -57,11 +64,52 @@ const CASUpload: React.FC = () => {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Save to portfolio state
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [portfolios, setPortfolios] = useState<PortfolioOption[]>([]);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('__new__');
+  const [newPortfolioName, setNewPortfolioName] = useState('CAS Import');
+  const [saving, setSaving] = useState(false);
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const dropped = e.dataTransfer.files[0];
     if (dropped?.type === 'application/pdf') setFile(dropped);
     else toast.error('Please drop a PDF file');
+  };
+
+  const handleOpenSave = async () => {
+    try {
+      const { data } = await axios.get<{ portfolios: PortfolioOption[] }>('/api/portfolio');
+      // Exclude the auto-generated demo portfolio so CAS data never mixes with dummy holdings
+      const real = (data.portfolios || []).filter(p => !p.id.startsWith('demo_port_'));
+      setPortfolios(real);
+    } catch {
+      setPortfolios([]);
+    }
+    setSelectedPortfolioId('__new__');
+    setSaveOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!result) return;
+    setSaving(true);
+    try {
+      const allHoldings = [...result.mutualFunds, ...result.equities];
+      const body: any = { holdings: allHoldings };
+      if (selectedPortfolioId === '__new__') {
+        body.portfolioName = newPortfolioName || 'CAS Import';
+      } else {
+        body.portfolioId = selectedPortfolioId;
+      }
+      await axios.post('/api/portfolio/import-cas', body);
+      toast.success('Holdings saved to portfolio!');
+      setSaveOpen(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to save holdings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleParse = async () => {
@@ -295,12 +343,80 @@ const CASUpload: React.FC = () => {
             </Alert>
           )}
 
+          {/* Save to portfolio */}
+          {result.summary.totalHoldings > 0 && (
+            <Card sx={{ mb: 2, border: '1px solid', borderColor: 'primary.main' }}>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                  <Typography variant="h6" fontWeight={600}>Save to Portfolio</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Import {result.summary.totalHoldings} holdings ({formatCurrency(result.summary.totalValue)}) into your portfolio
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<SaveAlt />}
+                  onClick={handleOpenSave}
+                >
+                  Save to Portfolio
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Divider sx={{ my: 2 }} />
           <Typography variant="caption" color="text.secondary">
-            This data is parsed locally and not stored anywhere. Refresh the page to clear it.
+            This data is parsed locally. Use "Save to Portfolio" to persist it.
           </Typography>
         </>
       )}
+
+      {/* Save dialog */}
+      <Dialog open={saveOpen} onClose={() => setSaveOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Save to Portfolio</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Portfolio</InputLabel>
+            <Select
+              value={selectedPortfolioId}
+              label="Portfolio"
+              onChange={e => setSelectedPortfolioId(e.target.value)}
+            >
+              {portfolios.map(p => (
+                <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+              ))}
+              <MenuItem value="__new__">+ Create new portfolio</MenuItem>
+            </Select>
+          </FormControl>
+
+          {selectedPortfolioId === '__new__' && (
+            <TextField
+              fullWidth
+              label="New portfolio name"
+              value={newPortfolioName}
+              onChange={e => setNewPortfolioName(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+          )}
+
+          <Alert severity="info">
+            {result?.summary.mutualFundCount ?? 0} mutual funds and {result?.summary.equityCount ?? 0} equities
+            totalling {formatCurrency(result?.summary.totalValue ?? 0)} will be added.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setSaveOpen(false)} disabled={saving}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={saving || (selectedPortfolioId === '__new__' && !newPortfolioName.trim())}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveAlt />}
+          >
+            {saving ? 'Saving…' : 'Import'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

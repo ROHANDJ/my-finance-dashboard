@@ -266,7 +266,7 @@ const MutualFunds: React.FC = () => {
                             </TableCell>
                             <TableCell align="right">
                               <Typography variant="body2" fontWeight={600}>
-                                ₹{fund.nav.toFixed(2)}
+                                ₹{fund.nav ? Number(fund.nav).toFixed(2) : '—'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {fund.date}

@@ -24,6 +24,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import UpstoxConnect from '../../components/UpstoxConnect/UpstoxConnect';
 
 interface Portfolio {
   _id: string;
@@ -129,6 +130,11 @@ const Portfolio: React.FC = () => {
 
   return (
     <Box>
+      {/* Upstox broker integration */}
+      <Box mb={3}>
+        <UpstoxConnect onSynced={fetchPortfolios} />
+      </Box>
+
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" fontWeight={600}>
           Portfolio
