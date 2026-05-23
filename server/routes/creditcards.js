@@ -1,198 +1,99 @@
 const express = require('express');
 const auth = require('../middleware/auth');
+const supabase = require('../lib/supabase');
 const router = express.Router();
 
-// ---------------------------------------------------------------------------
-// In-memory demo data store
-// ---------------------------------------------------------------------------
-
-const DEMO_USER_ID = 'demo_user';
-
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d;
-}
-
-let creditCards = [
-  {
-    id: 'cc_001',
-    userId: DEMO_USER_ID,
-    bankName: 'HDFC Bank',
-    cardName: 'HDFC Regalia Gold',
-    last4Digits: '4821',
-    cardType: 'visa',
-    creditLimit: 300000,
-    availableCredit: 178540,
-    billingCycleDate: 5,
-    dueDate: 25,
-    minimumPayment: 2500,
-    currentBalance: 121460,
-    totalSpent: 121460,
-    color: '#1a56db',
-    isActive: true,
-    createdAt: daysAgo(180),
-    transactions: [
-      { id: 'txn_h001', amount: 5499,  description: 'Amazon Prime subscription',  category: 'entertainment', date: daysAgo(2),  type: 'debit',  merchantName: 'Amazon'       },
-      { id: 'txn_h002', amount: 12800, description: 'Tanishq jewellery store',     category: 'shopping',      date: daysAgo(4),  type: 'debit',  merchantName: 'Tanishq'      },
-      { id: 'txn_h003', amount: 3200,  description: 'IndiGo flight – BLR to DEL', category: 'transport',     date: daysAgo(5),  type: 'debit',  merchantName: 'IndiGo'       },
-      { id: 'txn_h004', amount: 850,   description: 'Swiggy food order',           category: 'food',          date: daysAgo(6),  type: 'debit',  merchantName: 'Swiggy'       },
-      { id: 'txn_h005', amount: 25000, description: 'Card payment received',       category: 'other',         date: daysAgo(7),  type: 'credit', merchantName: 'HDFC Bank'    },
-      { id: 'txn_h006', amount: 7800,  description: 'H&M clothing',                category: 'shopping',      date: daysAgo(9),  type: 'debit',  merchantName: 'H&M'          },
-      { id: 'txn_h007', amount: 2100,  description: 'Apollo pharmacy',             category: 'health',        date: daysAgo(10), type: 'debit',  merchantName: 'Apollo'       },
-      { id: 'txn_h008', amount: 1560,  description: 'Domino\'s pizza order',       category: 'food',          date: daysAgo(12), type: 'debit',  merchantName: 'Domino\'s'    },
-      { id: 'txn_h009', amount: 45000, description: 'HP laptop – EMI deduction',   category: 'shopping',      date: daysAgo(14), type: 'debit',  merchantName: 'Croma'        },
-      { id: 'txn_h010', amount: 50000, description: 'Card payment received',       category: 'other',         date: daysAgo(15), type: 'credit', merchantName: 'HDFC Bank'    },
-      { id: 'txn_h011', amount: 699,   description: 'Spotify Premium',             category: 'entertainment', date: daysAgo(18), type: 'debit',  merchantName: 'Spotify'      },
-      { id: 'txn_h012', amount: 4200,  description: 'Nykaa cosmetics',             category: 'shopping',      date: daysAgo(20), type: 'debit',  merchantName: 'Nykaa'        }
-    ]
-  },
-  {
-    id: 'cc_002',
-    userId: DEMO_USER_ID,
-    bankName: 'SBI Card',
-    cardName: 'SBI SimplyCLICK',
-    last4Digits: '9734',
-    cardType: 'visa',
-    creditLimit: 150000,
-    availableCredit: 94300,
-    billingCycleDate: 15,
-    dueDate: 5,
-    minimumPayment: 1200,
-    currentBalance: 55700,
-    totalSpent: 55700,
-    color: '#2563eb',
-    isActive: true,
-    createdAt: daysAgo(365),
-    transactions: [
-      { id: 'txn_s001', amount: 1299,  description: 'Zomato Gold membership',      category: 'food',          date: daysAgo(1),  type: 'debit',  merchantName: 'Zomato'       },
-      { id: 'txn_s002', amount: 8500,  description: 'Decathlon sports gear',        category: 'shopping',      date: daysAgo(3),  type: 'debit',  merchantName: 'Decathlon'    },
-      { id: 'txn_s003', amount: 3600,  description: 'Electricity bill payment',     category: 'utilities',     date: daysAgo(5),  type: 'debit',  merchantName: 'BESCOM'       },
-      { id: 'txn_s004', amount: 20000, description: 'Card payment received',        category: 'other',         date: daysAgo(8),  type: 'credit', merchantName: 'SBI Card'     },
-      { id: 'txn_s005', amount: 2450,  description: 'BookMyShow – concert tickets', category: 'entertainment', date: daysAgo(9),  type: 'debit',  merchantName: 'BookMyShow'   },
-      { id: 'txn_s006', amount: 980,   description: 'Rapido bike – monthly pass',   category: 'transport',     date: daysAgo(11), type: 'debit',  merchantName: 'Rapido'       },
-      { id: 'txn_s007', amount: 15000, description: 'Mobile phone EMI',             category: 'shopping',      date: daysAgo(13), type: 'debit',  merchantName: 'Flipkart'     },
-      { id: 'txn_s008', amount: 5200,  description: 'Restaurant – anniversary dinner', category: 'food',       date: daysAgo(16), type: 'debit',  merchantName: 'The Fatty Bao'},
-      { id: 'txn_s009', amount: 1750,  description: 'Cult.fit gym membership',      category: 'health',        date: daysAgo(18), type: 'debit',  merchantName: 'Cult.fit'     },
-      { id: 'txn_s010', amount: 25000, description: 'Card payment received',        category: 'other',         date: daysAgo(20), type: 'credit', merchantName: 'SBI Card'     }
-    ]
-  },
-  {
-    id: 'cc_003',
-    userId: DEMO_USER_ID,
-    bankName: 'Axis Bank',
-    cardName: 'Axis Ace Credit Card',
-    last4Digits: '2267',
-    cardType: 'visa',
-    creditLimit: 200000,
-    availableCredit: 167800,
-    billingCycleDate: 20,
-    dueDate: 10,
-    minimumPayment: 800,
-    currentBalance: 32200,
-    totalSpent: 32200,
-    color: '#7c3aed',
-    isActive: true,
-    createdAt: daysAgo(90),
-    transactions: [
-      { id: 'txn_a001', amount: 4500,  description: 'MakeMyTrip hotel booking',    category: 'transport',     date: daysAgo(2),  type: 'debit',  merchantName: 'MakeMyTrip'   },
-      { id: 'txn_a002', amount: 350,   description: 'Chai Point – office snacks',  category: 'food',          date: daysAgo(4),  type: 'debit',  merchantName: 'Chai Point'   },
-      { id: 'txn_a003', amount: 12500, description: 'Myntra Big Fashion Sale',     category: 'shopping',      date: daysAgo(6),  type: 'debit',  merchantName: 'Myntra'       },
-      { id: 'txn_a004', amount: 15000, description: 'Card payment received',       category: 'other',         date: daysAgo(10), type: 'credit', merchantName: 'Axis Bank'    },
-      { id: 'txn_a005', amount: 2800,  description: 'Udemy course bundle',         category: 'education',     date: daysAgo(12), type: 'debit',  merchantName: 'Udemy'        },
-      { id: 'txn_a006', amount: 6500,  description: 'VLCC health package',         category: 'health',        date: daysAgo(14), type: 'debit',  merchantName: 'VLCC'         },
-      { id: 'txn_a007', amount: 1200,  description: 'Jio postpaid bill',           category: 'utilities',     date: daysAgo(16), type: 'debit',  merchantName: 'Jio'          },
-      { id: 'txn_a008', amount: 8000,  description: 'Card payment received',       category: 'other',         date: daysAgo(18), type: 'credit', merchantName: 'Axis Bank'    },
-      { id: 'txn_a009', amount: 550,   description: 'Blinkit – grocery delivery',  category: 'food',          date: daysAgo(20), type: 'debit',  merchantName: 'Blinkit'      },
-      { id: 'txn_a010', amount: 2800,  description: 'PVR IMAX movie experience',   category: 'entertainment', date: daysAgo(22), type: 'debit',  merchantName: 'PVR'          }
-    ]
-  }
-];
-
-// ---------------------------------------------------------------------------
-// Utility helpers
-// ---------------------------------------------------------------------------
-
-function generateId(prefix = 'cc') {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function getUserCards(userId) {
-  return creditCards.filter(c => c.userId === DEMO_USER_ID || c.userId === userId);
-}
+const VALID_CARD_TYPES = ['visa', 'mastercard', 'rupay', 'amex'];
+const VALID_CATEGORIES = ['food', 'transport', 'shopping', 'entertainment', 'utilities', 'health', 'education', 'other'];
 
 function recalcBalance(card) {
-  const debits  = card.transactions.filter(t => t.type === 'debit').reduce((s, t)  => s + t.amount, 0);
-  const credits = card.transactions.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
-  card.currentBalance  = Math.max(0, debits - credits);
-  card.totalSpent      = debits;
-  card.availableCredit = Math.max(0, card.creditLimit - card.currentBalance);
+  const txns    = card.transactions || [];
+  const debits  = txns.filter(t => t.type === 'debit').reduce((s, t)  => s + t.amount, 0);
+  const credits = txns.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+  card.current_balance  = Math.max(0, debits - credits);
+  card.total_spent      = debits;
+  card.available_credit = Math.max(0, card.credit_limit - card.current_balance);
   return card;
 }
 
-// ---------------------------------------------------------------------------
-// GET /summary  –  overall credit card overview
-// ---------------------------------------------------------------------------
+function mapCard(c) {
+  return {
+    id: c.id,
+    userId: c.user_id,
+    bankName: c.bank_name,
+    cardName: c.card_name,
+    last4Digits: c.last_4_digits,
+    cardType: c.card_type,
+    creditLimit: parseFloat(c.credit_limit),
+    availableCredit: parseFloat(c.available_credit),
+    billingCycleDate: c.billing_cycle_date,
+    dueDate: c.due_date,
+    minimumPayment: parseFloat(c.minimum_payment || 0),
+    currentBalance: parseFloat(c.current_balance || 0),
+    totalSpent: parseFloat(c.total_spent || 0),
+    color: c.color,
+    isActive: c.is_active,
+    transactions: c.transactions || [],
+    createdAt: c.created_at
+  };
+}
 
-router.get('/summary', auth, (req, res) => {
+// ---------------------------------------------------------------------------
+// GET /summary
+// ---------------------------------------------------------------------------
+router.get('/summary', auth, async (req, res) => {
   try {
-    const cards = getUserCards(req.userId);
-    const activeCards = cards.filter(c => c.isActive);
+    const { data: cards, error } = await supabase
+      .from('credit_cards')
+      .select('*')
+      .eq('user_id', req.userId)
+      .eq('is_active', true);
 
-    const totalCreditLimit = activeCards.reduce((s, c) => s + c.creditLimit, 0);
-    const totalUsed        = activeCards.reduce((s, c) => s + c.currentBalance, 0);
-    const totalAvailable   = activeCards.reduce((s, c) => s + c.availableCredit, 0);
+    if (error) throw error;
+    const activeCards = cards || [];
+
+    const totalCreditLimit = activeCards.reduce((s, c) => s + parseFloat(c.credit_limit), 0);
+    const totalUsed        = activeCards.reduce((s, c) => s + parseFloat(c.current_balance || 0), 0);
+    const totalAvailable   = activeCards.reduce((s, c) => s + parseFloat(c.available_credit), 0);
     const utilizationPct   = totalCreditLimit > 0
-      ? parseFloat(((totalUsed / totalCreditLimit) * 100).toFixed(2))
-      : 0;
+      ? parseFloat(((totalUsed / totalCreditLimit) * 100).toFixed(2)) : 0;
 
     const today = new Date();
-
-    // Build upcoming dues (next 30 days)
     const upcomingDues = activeCards.map(card => {
-      const dueDay = card.dueDate;
+      const dueDay = card.due_date || 20;
       let dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
       if (dueDate < today) dueDate.setMonth(dueDate.getMonth() + 1);
       const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
       return {
         cardId: card.id,
-        cardName: card.cardName,
-        bankName: card.bankName,
-        last4Digits: card.last4Digits,
+        cardName: card.card_name,
+        bankName: card.bank_name,
+        last4Digits: card.last_4_digits,
         dueDate: dueDate.toISOString().slice(0, 10),
         daysUntilDue,
-        amountDue: card.currentBalance,
-        minimumPayment: card.minimumPayment
+        amountDue: parseFloat(card.current_balance || 0),
+        minimumPayment: parseFloat(card.minimum_payment || 0)
       };
     }).filter(d => d.daysUntilDue <= 30)
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
     const cardsData = activeCards.map(c => ({
       id: c.id,
-      bankName: c.bankName,
-      cardName: c.cardName,
-      last4Digits: c.last4Digits,
-      cardType: c.cardType,
-      creditLimit: c.creditLimit,
-      availableCredit: c.availableCredit,
-      currentBalance: c.currentBalance,
-      utilization: c.creditLimit > 0
-        ? parseFloat(((c.currentBalance / c.creditLimit) * 100).toFixed(2))
-        : 0,
+      bankName: c.bank_name,
+      cardName: c.card_name,
+      last4Digits: c.last_4_digits,
+      cardType: c.card_type,
+      creditLimit: parseFloat(c.credit_limit),
+      availableCredit: parseFloat(c.available_credit),
+      currentBalance: parseFloat(c.current_balance || 0),
+      utilization: parseFloat(c.credit_limit) > 0
+        ? parseFloat(((parseFloat(c.current_balance || 0) / parseFloat(c.credit_limit)) * 100).toFixed(2)) : 0,
       color: c.color,
-      dueDate: c.dueDate,
-      minimumPayment: c.minimumPayment
+      dueDate: c.due_date,
+      minimumPayment: parseFloat(c.minimum_payment || 0)
     }));
 
-    res.json({
-      totalCreditLimit,
-      totalUsed,
-      totalAvailable,
-      utilizationPercentage: utilizationPct,
-      upcomingDues,
-      cardsData,
-      cardsCount: activeCards.length
-    });
+    res.json({ totalCreditLimit, totalUsed, totalAvailable, utilizationPercentage: utilizationPct, upcomingDues, cardsData, cardsCount: activeCards.length });
   } catch (err) {
     console.error('Credit card summary error:', err);
     res.status(500).json({ message: 'Error fetching credit card summary' });
@@ -200,19 +101,22 @@ router.get('/summary', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /  –  list all credit cards
+// GET /  –  list all active credit cards
 // ---------------------------------------------------------------------------
-
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    const cards = getUserCards(req.userId);
+    const { data: cards, error } = await supabase
+      .from('credit_cards')
+      .select('*')
+      .eq('user_id', req.userId)
+      .eq('is_active', true);
 
-    const result = cards.map(c => ({
-      ...c,
-      transactionCount: c.transactions.length,
-      utilization: c.creditLimit > 0
-        ? parseFloat(((c.currentBalance / c.creditLimit) * 100).toFixed(2))
-        : 0
+    if (error) throw error;
+    const result = (cards || []).map(c => ({
+      ...mapCard(c),
+      transactionCount: (c.transactions || []).length,
+      utilization: parseFloat(c.credit_limit) > 0
+        ? parseFloat(((parseFloat(c.current_balance || 0) / parseFloat(c.credit_limit)) * 100).toFixed(2)) : 0
     }));
 
     res.json({ creditCards: result, count: result.length });
@@ -225,48 +129,41 @@ router.get('/', auth, (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /  –  add a new credit card
 // ---------------------------------------------------------------------------
-
-router.post('/', auth, (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
-    const {
-      bankName, cardName, last4Digits, cardType,
-      creditLimit, billingCycleDate, dueDate,
-      minimumPayment, color
-    } = req.body;
+    const { bankName, cardName, last4Digits, cardType, creditLimit, billingCycleDate, dueDate, minimumPayment, color } = req.body;
 
-    if (!bankName || !cardName || !last4Digits || !cardType || !creditLimit) {
+    if (!bankName || !cardName || !last4Digits || !cardType || !creditLimit)
       return res.status(400).json({ message: 'bankName, cardName, last4Digits, cardType, and creditLimit are required' });
-    }
-    if (!/^\d{4}$/.test(last4Digits)) {
+    if (!/^\d{4}$/.test(last4Digits))
       return res.status(400).json({ message: 'last4Digits must be exactly 4 digits' });
-    }
-    const validCardTypes = ['visa', 'mastercard', 'rupay', 'amex'];
-    if (!validCardTypes.includes(cardType)) {
-      return res.status(400).json({ message: `cardType must be one of: ${validCardTypes.join(', ')}` });
-    }
+    if (!VALID_CARD_TYPES.includes(cardType))
+      return res.status(400).json({ message: `cardType must be one of: ${VALID_CARD_TYPES.join(', ')}` });
 
-    const card = {
-      id: generateId('cc'),
-      userId: req.userId,
-      bankName: bankName.trim(),
-      cardName: cardName.trim(),
-      last4Digits,
-      cardType,
-      creditLimit: parseFloat(creditLimit),
-      availableCredit: parseFloat(creditLimit),
-      billingCycleDate: billingCycleDate || 1,
-      dueDate: dueDate || 20,
-      minimumPayment: minimumPayment || 0,
-      currentBalance: 0,
-      totalSpent: 0,
-      color: color || '#6366f1',
-      isActive: true,
-      createdAt: new Date(),
-      transactions: []
-    };
+    const limit = parseFloat(creditLimit);
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .insert({
+        user_id: req.userId,
+        bank_name: bankName.trim(),
+        card_name: cardName.trim(),
+        last_4_digits: last4Digits,
+        card_type: cardType,
+        credit_limit: limit,
+        available_credit: limit,
+        billing_cycle_date: billingCycleDate || 1,
+        due_date: dueDate || 20,
+        minimum_payment: minimumPayment || 0,
+        current_balance: 0,
+        total_spent: 0,
+        color: color || '#6366f1',
+        transactions: []
+      })
+      .select()
+      .single();
 
-    creditCards.push(card);
-    res.status(201).json({ message: 'Credit card added successfully', creditCard: card });
+    if (error) throw error;
+    res.status(201).json({ message: 'Credit card added successfully', creditCard: mapCard(data) });
   } catch (err) {
     console.error('Add credit card error:', err);
     res.status(500).json({ message: 'Error adding credit card' });
@@ -276,24 +173,37 @@ router.post('/', auth, (req, res) => {
 // ---------------------------------------------------------------------------
 // PUT /:id  –  update credit card details
 // ---------------------------------------------------------------------------
-
-router.put('/:id', auth, (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
-    const idx = creditCards.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Credit card not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('credit_cards').select('*')
+      .eq('id', req.params.id).eq('user_id', req.userId).maybeSingle();
 
-    const card = creditCards[idx];
-    const fields = ['bankName', 'cardName', 'cardType', 'creditLimit', 'billingCycleDate', 'dueDate', 'minimumPayment', 'color', 'isActive'];
+    if (fetchErr) throw fetchErr;
+    if (!existing) return res.status(404).json({ message: 'Credit card not found' });
 
-    fields.forEach(f => {
-      if (req.body[f] !== undefined) card[f] = req.body[f];
+    const fieldMap = {
+      bankName: 'bank_name', cardName: 'card_name', cardType: 'card_type',
+      creditLimit: 'credit_limit', billingCycleDate: 'billing_cycle_date',
+      dueDate: 'due_date', minimumPayment: 'minimum_payment',
+      color: 'color', isActive: 'is_active'
+    };
+
+    const updates = {};
+    Object.entries(fieldMap).forEach(([camel, snake]) => {
+      if (req.body[camel] !== undefined) updates[snake] = req.body[camel];
     });
 
-    // Recalculate available credit if limit changed
-    card.availableCredit = Math.max(0, card.creditLimit - card.currentBalance);
-    creditCards[idx] = card;
+    const newLimit = parseFloat(updates.credit_limit || existing.credit_limit);
+    const balance  = parseFloat(existing.current_balance || 0);
+    updates.available_credit = Math.max(0, newLimit - balance);
 
-    res.json({ message: 'Credit card updated successfully', creditCard: card });
+    const { data, error } = await supabase
+      .from('credit_cards').update(updates)
+      .eq('id', req.params.id).select().single();
+
+    if (error) throw error;
+    res.json({ message: 'Credit card updated successfully', creditCard: mapCard(data) });
   } catch (err) {
     console.error('Update credit card error:', err);
     res.status(500).json({ message: 'Error updating credit card' });
@@ -301,15 +211,21 @@ router.put('/:id', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /:id  –  delete credit card
+// DELETE /:id  –  soft-delete
 // ---------------------------------------------------------------------------
-
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const idx = creditCards.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Credit card not found' });
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .update({ is_active: false })
+      .eq('id', req.params.id)
+      .eq('user_id', req.userId)
+      .select()
+      .single();
 
-    creditCards.splice(idx, 1);
+    if (error) throw error;
+    if (!data) return res.status(404).json({ message: 'Credit card not found' });
+
     res.json({ message: 'Credit card deleted successfully' });
   } catch (err) {
     console.error('Delete credit card error:', err);
@@ -318,24 +234,25 @@ router.delete('/:id', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /:id/transactions  –  list transactions for a card
+// GET /:id/transactions
 // ---------------------------------------------------------------------------
-
-router.get('/:id/transactions', auth, (req, res) => {
+router.get('/:id/transactions', auth, async (req, res) => {
   try {
-    const card = creditCards.find(c => c.id === req.params.id);
+    const { data: card, error } = await supabase
+      .from('credit_cards').select('*')
+      .eq('id', req.params.id).eq('user_id', req.userId).maybeSingle();
+
+    if (error) throw error;
     if (!card) return res.status(404).json({ message: 'Credit card not found' });
 
     const { type, category, startDate, endDate, page = 1, limit = 50 } = req.query;
-
-    let txns = [...card.transactions];
+    let txns = (card.transactions || []).slice();
 
     if (type)      txns = txns.filter(t => t.type === type);
     if (category)  txns = txns.filter(t => t.category === category);
     if (startDate) txns = txns.filter(t => new Date(t.date) >= new Date(startDate));
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       txns = txns.filter(t => new Date(t.date) <= end);
     }
 
@@ -350,10 +267,10 @@ router.get('/:id/transactions', auth, (req, res) => {
       transactions: paginated,
       pagination: { total, page: pageNum, limit: pageSize, pages: Math.ceil(total / pageSize) },
       cardSummary: {
-        creditLimit: card.creditLimit,
-        currentBalance: card.currentBalance,
-        availableCredit: card.availableCredit,
-        totalSpent: card.totalSpent
+        creditLimit: parseFloat(card.credit_limit),
+        currentBalance: parseFloat(card.current_balance || 0),
+        availableCredit: parseFloat(card.available_credit),
+        totalSpent: parseFloat(card.total_spent || 0)
       }
     });
   } catch (err) {
@@ -363,48 +280,57 @@ router.get('/:id/transactions', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /:id/transactions  –  add transaction to a card
+// POST /:id/transactions  –  add transaction
 // ---------------------------------------------------------------------------
-
-router.post('/:id/transactions', auth, (req, res) => {
+router.post('/:id/transactions', auth, async (req, res) => {
   try {
-    const idx = creditCards.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Credit card not found' });
+    const { data: card, error: fetchErr } = await supabase
+      .from('credit_cards').select('*')
+      .eq('id', req.params.id).eq('user_id', req.userId).maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!card) return res.status(404).json({ message: 'Credit card not found' });
 
     const { amount, description, category, date, type, merchantName } = req.body;
 
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!amount || parseFloat(amount) <= 0)
       return res.status(400).json({ message: 'A positive amount is required' });
-    }
-    if (!description || !description.trim()) {
+    if (!description || !description.trim())
       return res.status(400).json({ message: 'Description is required' });
-    }
-    if (!['debit', 'credit'].includes(type)) {
+    if (!['debit', 'credit'].includes(type))
       return res.status(400).json({ message: 'type must be "debit" or "credit"' });
-    }
-
-    const validCategories = ['food', 'transport', 'shopping', 'entertainment', 'utilities', 'health', 'education', 'other'];
 
     const txn = {
-      id: generateId('txn'),
+      id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       amount: parseFloat(amount),
       description: description.trim(),
-      category: validCategories.includes(category) ? category : 'other',
-      date: date ? new Date(date) : new Date(),
+      category: VALID_CATEGORIES.includes(category) ? category : 'other',
+      date: date ? new Date(date).toISOString() : new Date().toISOString(),
       type,
       merchantName: merchantName || ''
     };
 
-    const card = creditCards[idx];
-    card.transactions.push(txn);
+    card.transactions = [...(card.transactions || []), txn];
     recalcBalance(card);
-    creditCards[idx] = card;
 
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .update({
+        transactions: card.transactions,
+        current_balance: card.current_balance,
+        available_credit: card.available_credit,
+        total_spent: card.total_spent
+      })
+      .eq('id', card.id)
+      .select()
+      .single();
+
+    if (error) throw error;
     res.status(201).json({
       message: 'Transaction added successfully',
       transaction: txn,
-      updatedBalance: card.currentBalance,
-      availableCredit: card.availableCredit
+      updatedBalance: parseFloat(data.current_balance),
+      availableCredit: parseFloat(data.available_credit)
     });
   } catch (err) {
     console.error('Add transaction error:', err);
@@ -413,26 +339,41 @@ router.post('/:id/transactions', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /:id/transactions/:txnId  –  remove transaction
+// DELETE /:id/transactions/:txnId
 // ---------------------------------------------------------------------------
-
-router.delete('/:id/transactions/:txnId', auth, (req, res) => {
+router.delete('/:id/transactions/:txnId', auth, async (req, res) => {
   try {
-    const cardIdx = creditCards.findIndex(c => c.id === req.params.id);
-    if (cardIdx === -1) return res.status(404).json({ message: 'Credit card not found' });
+    const { data: card, error: fetchErr } = await supabase
+      .from('credit_cards').select('*')
+      .eq('id', req.params.id).eq('user_id', req.userId).maybeSingle();
 
-    const card = creditCards[cardIdx];
-    const txnIdx = card.transactions.findIndex(t => t.id === req.params.txnId);
-    if (txnIdx === -1) return res.status(404).json({ message: 'Transaction not found' });
+    if (fetchErr) throw fetchErr;
+    if (!card) return res.status(404).json({ message: 'Credit card not found' });
 
-    card.transactions.splice(txnIdx, 1);
+    const originalLength = (card.transactions || []).length;
+    card.transactions = (card.transactions || []).filter(t => t.id !== req.params.txnId);
+    if (card.transactions.length === originalLength)
+      return res.status(404).json({ message: 'Transaction not found' });
+
     recalcBalance(card);
-    creditCards[cardIdx] = card;
 
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .update({
+        transactions: card.transactions,
+        current_balance: card.current_balance,
+        available_credit: card.available_credit,
+        total_spent: card.total_spent
+      })
+      .eq('id', card.id)
+      .select()
+      .single();
+
+    if (error) throw error;
     res.json({
       message: 'Transaction deleted successfully',
-      updatedBalance: card.currentBalance,
-      availableCredit: card.availableCredit
+      updatedBalance: parseFloat(data.current_balance),
+      availableCredit: parseFloat(data.available_credit)
     });
   } catch (err) {
     console.error('Delete transaction error:', err);

@@ -1,62 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
+const supabase = require('../lib/supabase');
 const router = express.Router();
-
-// ---------------------------------------------------------------------------
-// In-memory demo data store
-// ---------------------------------------------------------------------------
-
-const DEMO_USER_ID = 'demo_user';
-
-// Helper: generate a date N days ago from today
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(Math.floor(Math.random() * 14) + 8, Math.floor(Math.random() * 60), 0, 0);
-  return d;
-}
-
-let expenses = [
-  // --- Food ---
-  { id: 'exp_001', userId: DEMO_USER_ID, amount: 320,  category: 'food',          description: 'Lunch at Subway',              date: daysAgo(0),  paymentMethod: 'upi',        tags: ['lunch', 'fast-food'], isRecurring: false, recurringType: null, createdAt: daysAgo(0) },
-  { id: 'exp_002', userId: DEMO_USER_ID, amount: 85,   category: 'food',          description: 'Morning chai & breakfast',      date: daysAgo(1),  paymentMethod: 'cash',       tags: ['breakfast'],          isRecurring: false, recurringType: null, createdAt: daysAgo(1) },
-  { id: 'exp_003', userId: DEMO_USER_ID, amount: 650,  category: 'food',          description: 'Dinner at Pizza Hut',           date: daysAgo(3),  paymentMethod: 'card',       tags: ['dinner', 'dining'],   isRecurring: false, recurringType: null, createdAt: daysAgo(3) },
-  { id: 'exp_004', userId: DEMO_USER_ID, amount: 240,  category: 'food',          description: 'Swiggy order – Biryani',        date: daysAgo(5),  paymentMethod: 'upi',        tags: ['delivery', 'dinner'], isRecurring: false, recurringType: null, createdAt: daysAgo(5) },
-  { id: 'exp_005', userId: DEMO_USER_ID, amount: 180,  category: 'food',          description: 'Grocery – local market',        date: daysAgo(7),  paymentMethod: 'cash',       tags: ['grocery'],            isRecurring: false, recurringType: null, createdAt: daysAgo(7) },
-
-  // --- Transport ---
-  { id: 'exp_006', userId: DEMO_USER_ID, amount: 450,  category: 'transport',     description: 'Ola cab – office commute',      date: daysAgo(1),  paymentMethod: 'upi',        tags: ['cab', 'commute'],     isRecurring: false, recurringType: null, createdAt: daysAgo(1) },
-  { id: 'exp_007', userId: DEMO_USER_ID, amount: 120,  category: 'transport',     description: 'Metro card recharge',           date: daysAgo(6),  paymentMethod: 'upi',        tags: ['metro'],              isRecurring: true,  recurringType: 'monthly', createdAt: daysAgo(6) },
-  { id: 'exp_008', userId: DEMO_USER_ID, amount: 2200, category: 'transport',     description: 'Petrol fill – full tank',       date: daysAgo(10), paymentMethod: 'card',       tags: ['petrol', 'fuel'],     isRecurring: false, recurringType: null, createdAt: daysAgo(10) },
-
-  // --- Shopping ---
-  { id: 'exp_009', userId: DEMO_USER_ID, amount: 1890, category: 'shopping',      description: 'Amazon – USB-C hub & cables',   date: daysAgo(4),  paymentMethod: 'card',       tags: ['electronics', 'amazon'], isRecurring: false, recurringType: null, createdAt: daysAgo(4) },
-  { id: 'exp_010', userId: DEMO_USER_ID, amount: 3500, category: 'shopping',      description: 'Myntra – casual shirts (x3)',   date: daysAgo(9),  paymentMethod: 'card',       tags: ['clothing', 'myntra'],    isRecurring: false, recurringType: null, createdAt: daysAgo(9) },
-  { id: 'exp_011', userId: DEMO_USER_ID, amount: 560,  category: 'shopping',      description: 'Stationery & notebooks',        date: daysAgo(14), paymentMethod: 'cash',       tags: ['stationery'],            isRecurring: false, recurringType: null, createdAt: daysAgo(14) },
-
-  // --- Entertainment ---
-  { id: 'exp_012', userId: DEMO_USER_ID, amount: 699,  category: 'entertainment', description: 'Netflix subscription (monthly)',date: daysAgo(2),  paymentMethod: 'card',       tags: ['streaming', 'subscription'], isRecurring: true, recurringType: 'monthly', createdAt: daysAgo(2) },
-  { id: 'exp_013', userId: DEMO_USER_ID, amount: 400,  category: 'entertainment', description: 'PVR movie tickets (x2)',        date: daysAgo(8),  paymentMethod: 'upi',        tags: ['movies'],             isRecurring: false, recurringType: null, createdAt: daysAgo(8) },
-
-  // --- Utilities ---
-  { id: 'exp_014', userId: DEMO_USER_ID, amount: 1250, category: 'utilities',     description: 'Electricity bill – April',      date: daysAgo(5),  paymentMethod: 'netbanking', tags: ['electricity', 'bill'], isRecurring: true, recurringType: 'monthly', createdAt: daysAgo(5) },
-  { id: 'exp_015', userId: DEMO_USER_ID, amount: 399,  category: 'utilities',     description: 'Jio broadband – monthly plan',  date: daysAgo(12), paymentMethod: 'upi',        tags: ['internet', 'bill'],   isRecurring: true, recurringType: 'monthly', createdAt: daysAgo(12) },
-
-  // --- Health ---
-  { id: 'exp_016', userId: DEMO_USER_ID, amount: 850,  category: 'health',        description: 'Apollo pharmacy – medicines',   date: daysAgo(3),  paymentMethod: 'upi',        tags: ['medicine', 'pharmacy'], isRecurring: false, recurringType: null, createdAt: daysAgo(3) },
-  { id: 'exp_017', userId: DEMO_USER_ID, amount: 600,  category: 'health',        description: 'Gym membership – monthly fee',  date: daysAgo(15), paymentMethod: 'card',       tags: ['gym', 'fitness'],     isRecurring: true, recurringType: 'monthly', createdAt: daysAgo(15) },
-
-  // --- Education ---
-  { id: 'exp_018', userId: DEMO_USER_ID, amount: 1999, category: 'education',     description: 'Udemy – Python course',         date: daysAgo(11), paymentMethod: 'card',       tags: ['course', 'online'],   isRecurring: false, recurringType: null, createdAt: daysAgo(11) },
-  { id: 'exp_019', userId: DEMO_USER_ID, amount: 2500, category: 'education',     description: 'Books – CFA Level 1 study material', date: daysAgo(20), paymentMethod: 'netbanking', tags: ['books', 'cfa'], isRecurring: false, recurringType: null, createdAt: daysAgo(20) },
-
-  // --- Other ---
-  { id: 'exp_020', userId: DEMO_USER_ID, amount: 750,  category: 'other',         description: 'Gift – friend\'s birthday',     date: daysAgo(6),  paymentMethod: 'upi',        tags: ['gift'],               isRecurring: false, recurringType: null, createdAt: daysAgo(6) }
-];
-
-// ---------------------------------------------------------------------------
-// Predefined categories with icons (Lucide / emoji fallback)
-// ---------------------------------------------------------------------------
 
 const CATEGORIES = [
   { id: 'food',          label: 'Food & Dining',    icon: 'UtensilsCrossed', emoji: '🍽️',  color: '#f97316' },
@@ -69,65 +14,68 @@ const CATEGORIES = [
   { id: 'other',         label: 'Other',            icon: 'MoreHorizontal',  emoji: '📦',  color: '#6b7280' }
 ];
 
-// ---------------------------------------------------------------------------
-// Utility helpers
-// ---------------------------------------------------------------------------
+const VALID_CATEGORIES  = CATEGORIES.map(c => c.id);
+const VALID_METHODS     = ['cash', 'card', 'upi', 'netbanking'];
 
-function generateId() {
-  return 'exp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-}
-
-function startOfDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function getUserExpenses(userId) {
-  // In demo mode every authenticated user sees the same seed data
-  return expenses.filter(e => e.userId === DEMO_USER_ID || e.userId === userId);
+// Map DB row to API response (snake_case → camelCase)
+function mapExpense(e) {
+  return {
+    id: e.id,
+    userId: e.user_id,
+    amount: parseFloat(e.amount),
+    category: e.category,
+    description: e.description,
+    date: e.date,
+    paymentMethod: e.payment_method,
+    tags: e.tags || [],
+    isRecurring: e.is_recurring,
+    recurringType: e.recurring_type,
+    createdAt: e.created_at
+  };
 }
 
 // ---------------------------------------------------------------------------
 // GET /categories
 // ---------------------------------------------------------------------------
-
 router.get('/categories', auth, (req, res) => {
   res.json({ categories: CATEGORIES });
 });
 
 // ---------------------------------------------------------------------------
-// GET /summary  –  aggregated stats
+// GET /summary
 // ---------------------------------------------------------------------------
-
-router.get('/summary', auth, (req, res) => {
+router.get('/summary', auth, async (req, res) => {
   try {
-    const userExpenses = getUserExpenses(req.userId);
     const now = new Date();
 
-    const todayStart = startOfDay(now);
-
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - 6);
-    weekStart.setHours(0, 0, 0, 0);
-
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const weekStart  = new Date(now); weekStart.setDate(now.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate() - 29); thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-    const todayExpenses  = userExpenses.filter(e => new Date(e.date) >= todayStart);
-    const weekExpenses   = userExpenses.filter(e => new Date(e.date) >= weekStart);
-    const monthExpenses  = userExpenses.filter(e => new Date(e.date) >= monthStart);
+    // Fetch all expenses from 30 days ago (covers today, week, month windows)
+    const { data: recentAll, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', req.userId)
+      .gte('date', thirtyDaysAgo.toISOString());
 
-    const sum = arr => arr.reduce((acc, e) => acc + e.amount, 0);
+    if (error) throw error;
+    const rows = recentAll || [];
 
+    const todayExpenses  = rows.filter(e => new Date(e.date) >= todayStart);
+    const weekExpenses   = rows.filter(e => new Date(e.date) >= weekStart);
+    const monthExpenses  = rows.filter(e => new Date(e.date) >= monthStart);
+
+    const sum = arr => arr.reduce((acc, e) => acc + parseFloat(e.amount), 0);
     const todayTotal = sum(todayExpenses);
     const weekTotal  = sum(weekExpenses);
     const monthTotal = sum(monthExpenses);
 
-    // Category breakdown for current month
     const categoryMap = {};
     monthExpenses.forEach(e => {
       if (!categoryMap[e.category]) categoryMap[e.category] = { amount: 0, count: 0 };
-      categoryMap[e.category].amount += e.amount;
+      categoryMap[e.category].amount += parseFloat(e.amount);
       categoryMap[e.category].count  += 1;
     });
 
@@ -138,18 +86,15 @@ router.get('/summary', auth, (req, res) => {
       percentage: monthTotal > 0 ? parseFloat(((data.amount / monthTotal) * 100).toFixed(2)) : 0
     })).sort((a, b) => b.amount - a.amount);
 
-    // Daily trend – last 30 days
     const dailyMap = {};
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      dailyMap[key] = 0;
+      dailyMap[d.toISOString().slice(0, 10)] = 0;
     }
-
-    userExpenses.forEach(e => {
+    rows.forEach(e => {
       const key = new Date(e.date).toISOString().slice(0, 10);
-      if (key in dailyMap) dailyMap[key] += e.amount;
+      if (key in dailyMap) dailyMap[key] += parseFloat(e.amount);
     });
 
     const dailyTrend = Object.entries(dailyMap).map(([date, amount]) => ({ date, amount }));
@@ -162,29 +107,32 @@ router.get('/summary', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /eod  –  today's end-of-day summary
+// GET /eod
 // ---------------------------------------------------------------------------
-
-router.get('/eod', auth, (req, res) => {
+router.get('/eod', auth, async (req, res) => {
   try {
-    const userExpenses = getUserExpenses(req.userId);
-    const todayStart = startOfDay(new Date());
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
-    const todayList = userExpenses.filter(e => new Date(e.date) >= todayStart);
-    const totalSpent = todayList.reduce((acc, e) => acc + e.amount, 0);
+    const { data: todayList, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', req.userId)
+      .gte('date', todayStart.toISOString())
+      .order('date', { ascending: false });
 
-    // Find top category today
+    if (error) throw error;
+    const rows = todayList || [];
+
+    const totalSpent = rows.reduce((acc, e) => acc + parseFloat(e.amount), 0);
     const catMap = {};
-    todayList.forEach(e => {
-      catMap[e.category] = (catMap[e.category] || 0) + e.amount;
-    });
+    rows.forEach(e => { catMap[e.category] = (catMap[e.category] || 0) + parseFloat(e.amount); });
     const topCategory = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
     res.json({
       totalSpent,
-      transactionCount: todayList.length,
+      transactionCount: rows.length,
       topCategory,
-      transactions: todayList.sort((a, b) => new Date(b.date) - new Date(a.date))
+      transactions: rows.map(mapExpense)
     });
   } catch (err) {
     console.error('Expenses EOD error:', err);
@@ -193,44 +141,35 @@ router.get('/eod', auth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /  –  list expenses with optional filters
+// GET /  –  list expenses with optional filters + pagination
 // ---------------------------------------------------------------------------
-
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
     const { startDate, endDate, category, search, page = 1, limit = 50 } = req.query;
-
-    let result = getUserExpenses(req.userId);
-
-    if (startDate) {
-      const from = new Date(startDate);
-      result = result.filter(e => new Date(e.date) >= from);
-    }
-    if (endDate) {
-      const to = new Date(endDate);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(e => new Date(e.date) <= to);
-    }
-    if (category) {
-      result = result.filter(e => e.category === category);
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(e =>
-        e.description.toLowerCase().includes(q) ||
-        (e.tags || []).some(t => t.toLowerCase().includes(q))
-      );
-    }
-
-    result.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    const total = result.length;
-    const pageNum = parseInt(page, 10);
+    const pageNum  = parseInt(page, 10);
     const pageSize = parseInt(limit, 10);
-    const paginated = result.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+    const from     = (pageNum - 1) * pageSize;
+    const to       = from + pageSize - 1;
 
+    let q = supabase.from('expenses').select('*', { count: 'exact' })
+      .eq('user_id', req.userId)
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (startDate) q = q.gte('date', new Date(startDate).toISOString());
+    if (endDate) {
+      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+      q = q.lte('date', end.toISOString());
+    }
+    if (category) q = q.eq('category', category);
+    if (search)   q = q.ilike('description', `%${search.trim()}%`);
+
+    const { data, error, count } = await q;
+    if (error) throw error;
+
+    const total = count || 0;
     res.json({
-      expenses: paginated,
+      expenses: (data || []).map(mapExpense),
       pagination: { total, page: pageNum, limit: pageSize, pages: Math.ceil(total / pageSize) }
     });
   } catch (err) {
@@ -242,40 +181,33 @@ router.get('/', auth, (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /  –  add expense
 // ---------------------------------------------------------------------------
-
-router.post('/', auth, (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
     const { amount, category, description, date, paymentMethod, tags, isRecurring, recurringType } = req.body;
 
-    if (!amount || amount <= 0) {
+    if (!amount || parseFloat(amount) <= 0)
       return res.status(400).json({ message: 'A positive amount is required' });
-    }
-    if (!description || !description.trim()) {
+    if (!description || !description.trim())
       return res.status(400).json({ message: 'Description is required' });
-    }
 
-    const validCategories = CATEGORIES.map(c => c.id);
-    const resolvedCategory = validCategories.includes(category) ? category : 'other';
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert({
+        user_id: req.userId,
+        amount: parseFloat(amount),
+        category: VALID_CATEGORIES.includes(category) ? category : 'other',
+        description: description.trim(),
+        date: date ? new Date(date).toISOString() : new Date().toISOString(),
+        payment_method: VALID_METHODS.includes(paymentMethod) ? paymentMethod : 'upi',
+        tags: Array.isArray(tags) ? tags : [],
+        is_recurring: Boolean(isRecurring),
+        recurring_type: isRecurring ? (recurringType || null) : null
+      })
+      .select()
+      .single();
 
-    const validMethods = ['cash', 'card', 'upi', 'netbanking'];
-    const resolvedMethod = validMethods.includes(paymentMethod) ? paymentMethod : 'upi';
-
-    const expense = {
-      id: generateId(),
-      userId: req.userId,
-      amount: parseFloat(amount),
-      category: resolvedCategory,
-      description: description.trim(),
-      date: date ? new Date(date) : new Date(),
-      paymentMethod: resolvedMethod,
-      tags: Array.isArray(tags) ? tags : [],
-      isRecurring: Boolean(isRecurring),
-      recurringType: isRecurring ? (recurringType || null) : null,
-      createdAt: new Date()
-    };
-
-    expenses.push(expense);
-    res.status(201).json({ message: 'Expense added successfully', expense });
+    if (error) throw error;
+    res.status(201).json({ message: 'Expense added successfully', expense: mapExpense(data) });
   } catch (err) {
     console.error('Add expense error:', err);
     res.status(500).json({ message: 'Error adding expense' });
@@ -285,36 +217,35 @@ router.post('/', auth, (req, res) => {
 // ---------------------------------------------------------------------------
 // PUT /:id  –  update expense
 // ---------------------------------------------------------------------------
-
-router.put('/:id', auth, (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
-    const idx = expenses.findIndex(e => e.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Expense not found' });
-
-    const expense = expenses[idx];
-
     const { amount, category, description, date, paymentMethod, tags, isRecurring, recurringType } = req.body;
+    const updates = {};
 
     if (amount !== undefined) {
       if (parseFloat(amount) <= 0) return res.status(400).json({ message: 'Amount must be positive' });
-      expense.amount = parseFloat(amount);
+      updates.amount = parseFloat(amount);
     }
-    if (category !== undefined) {
-      const valid = CATEGORIES.map(c => c.id);
-      expense.category = valid.includes(category) ? category : expense.category;
-    }
-    if (description !== undefined) expense.description = description.trim();
-    if (date !== undefined)        expense.date        = new Date(date);
-    if (paymentMethod !== undefined) {
-      const valid = ['cash', 'card', 'upi', 'netbanking'];
-      expense.paymentMethod = valid.includes(paymentMethod) ? paymentMethod : expense.paymentMethod;
-    }
-    if (tags !== undefined)         expense.tags         = Array.isArray(tags) ? tags : expense.tags;
-    if (isRecurring !== undefined)  expense.isRecurring  = Boolean(isRecurring);
-    if (recurringType !== undefined) expense.recurringType = recurringType;
+    if (category    !== undefined && VALID_CATEGORIES.includes(category)) updates.category = category;
+    if (description !== undefined) updates.description    = description.trim();
+    if (date        !== undefined) updates.date           = new Date(date).toISOString();
+    if (paymentMethod !== undefined && VALID_METHODS.includes(paymentMethod)) updates.payment_method = paymentMethod;
+    if (tags        !== undefined) updates.tags           = Array.isArray(tags) ? tags : [];
+    if (isRecurring !== undefined) updates.is_recurring   = Boolean(isRecurring);
+    if (recurringType !== undefined) updates.recurring_type = recurringType;
 
-    expenses[idx] = expense;
-    res.json({ message: 'Expense updated successfully', expense });
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('user_id', req.userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ message: 'Expense not found' });
+
+    res.json({ message: 'Expense updated successfully', expense: mapExpense(data) });
   } catch (err) {
     console.error('Update expense error:', err);
     res.status(500).json({ message: 'Error updating expense' });
@@ -324,13 +255,19 @@ router.put('/:id', auth, (req, res) => {
 // ---------------------------------------------------------------------------
 // DELETE /:id  –  delete expense
 // ---------------------------------------------------------------------------
-
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const idx = expenses.findIndex(e => e.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Expense not found' });
+    const { data, error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.userId)
+      .select()
+      .single();
 
-    expenses.splice(idx, 1);
+    if (error) throw error;
+    if (!data) return res.status(404).json({ message: 'Expense not found' });
+
     res.json({ message: 'Expense deleted successfully' });
   } catch (err) {
     console.error('Delete expense error:', err);

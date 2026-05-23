@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -33,18 +32,12 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection (commented out for demo)
-// mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/stock_analyzer', {
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true,
-// })
-// .then(() => console.log('MongoDB connected'))
-// .catch(err => {
-//   console.log('MongoDB connection error:', err);
-//   console.log('Running in demo mode without database');
-// });
-
-console.log('Server running in demo mode (no database)');
+// Verify Supabase credentials are set
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
+} else {
+  console.log('Supabase configured:', process.env.SUPABASE_URL);
+}
 
 function safeRoute(path, routeFile) {
   try {
@@ -68,6 +61,8 @@ safeRoute('/api/creditcards', './routes/creditcards');
 safeRoute('/api/eod',         './routes/eod');
 safeRoute('/api/optimization','./routes/optimization');
 safeRoute('/api/cas',         './routes/cas');
+safeRoute('/api/market',      './routes/market');
+safeRoute('/api/upstox',      './routes/upstox');
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -105,9 +100,19 @@ app.use((err, req, res, next) => {
 
 // Only listen when running directly (not in Vercel serverless)
 if (process.env.VERCEL !== '1') {
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+  server.listen(PORT)
+    .on('listening', () => {
+      console.log(`Server running on port ${PORT}`);
+    })
+    .on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use. Kill the process using it or set the PORT environment variable to a different port.`);
+      } else {
+        console.error('Server error:', err);
+      }
+      // Exit so process managers (nodemon) can restart cleanly
+      process.exit(1);
+    });
 }
 
 module.exports = app;

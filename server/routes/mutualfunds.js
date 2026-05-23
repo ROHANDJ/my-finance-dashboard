@@ -8,21 +8,21 @@ const router = express.Router();
 // ---------------------------------------------------------------------------
 
 const DEMO_FUNDS = [
-  { schemeCode: '120503', schemeName: 'Mirae Asset Large Cap Fund - Direct Growth',         amc: 'Mirae Asset', category: 'Equity - Large Cap', nav: '102.35', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '120503', schemeName: 'Mirae Asset Large Cap Fund - Direct Growth',         amc: 'Mirae Asset', category: 'Equity - Large Cap', nav: 102.35, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 2.1, '3M': 6.4, '6M': 12.8, '1Y': 24.6, '3Y': 18.2, '5Y': 16.4 }, risk: { standardDeviation: 14.2, sharpeRatio: 1.38, maxDrawdown: 16.8 }, rating: { morningstar: 5, valueResearch: 4 } },
-  { schemeCode: '119551', schemeName: 'Parag Parikh Flexi Cap Fund - Direct Growth',        amc: 'PPFAS Mutual Fund', category: 'Equity - Flexi Cap', nav: '68.92', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '119551', schemeName: 'Parag Parikh Flexi Cap Fund - Direct Growth',        amc: 'PPFAS Mutual Fund', category: 'Equity - Flexi Cap', nav: 68.92, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 1.8, '3M': 5.9, '6M': 11.2, '1Y': 27.8, '3Y': 21.4, '5Y': 19.6 }, risk: { standardDeviation: 13.1, sharpeRatio: 1.65, maxDrawdown: 14.5 }, rating: { morningstar: 5, valueResearch: 5 } },
-  { schemeCode: '125497', schemeName: 'Axis Bluechip Fund - Direct Growth',                 amc: 'Axis Mutual Fund', category: 'Equity - Large Cap', nav: '56.14', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '125497', schemeName: 'Axis Bluechip Fund - Direct Growth',                 amc: 'Axis Mutual Fund', category: 'Equity - Large Cap', nav: 56.14, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 1.2, '3M': 4.8, '6M': 9.6, '1Y': 19.8, '3Y': 15.6, '5Y': 14.8 }, risk: { standardDeviation: 12.8, sharpeRatio: 1.24, maxDrawdown: 13.2 }, rating: { morningstar: 4, valueResearch: 4 } },
-  { schemeCode: '118989', schemeName: 'SBI Small Cap Fund - Direct Growth',                 amc: 'SBI Mutual Fund', category: 'Equity - Small Cap', nav: '148.72', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '118989', schemeName: 'SBI Small Cap Fund - Direct Growth',                 amc: 'SBI Mutual Fund', category: 'Equity - Small Cap', nav: 148.72, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 3.4, '3M': 9.2, '6M': 18.6, '1Y': 42.1, '3Y': 28.4, '5Y': 24.6 }, risk: { standardDeviation: 22.4, sharpeRatio: 1.78, maxDrawdown: 24.8 }, rating: { morningstar: 5, valueResearch: 5 } },
-  { schemeCode: '101206', schemeName: 'HDFC Mid-Cap Opportunities Fund - Direct Growth',   amc: 'HDFC Mutual Fund', category: 'Equity - Mid Cap', nav: '125.88', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '101206', schemeName: 'HDFC Mid-Cap Opportunities Fund - Direct Growth',   amc: 'HDFC Mutual Fund', category: 'Equity - Mid Cap', nav: 125.88, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 2.8, '3M': 7.8, '6M': 15.4, '1Y': 38.6, '3Y': 24.8, '5Y': 21.2 }, risk: { standardDeviation: 18.6, sharpeRatio: 1.62, maxDrawdown: 20.4 }, rating: { morningstar: 5, valueResearch: 4 } },
-  { schemeCode: '112090', schemeName: 'ICICI Pru Balanced Advantage Fund - Direct Growth', amc: 'ICICI Prudential', category: 'Hybrid - Dynamic Asset Allocation', nav: '58.24', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '112090', schemeName: 'ICICI Pru Balanced Advantage Fund - Direct Growth', amc: 'ICICI Prudential', category: 'Hybrid - Dynamic Asset Allocation', nav: 58.24, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 1.1, '3M': 3.6, '6M': 7.8, '1Y': 16.2, '3Y': 13.4, '5Y': 12.8 }, risk: { standardDeviation: 9.2, sharpeRatio: 1.42, maxDrawdown: 10.6 }, rating: { morningstar: 4, valueResearch: 4 } },
-  { schemeCode: '119598', schemeName: 'Nippon India Nifty 50 Index Fund - Direct Growth',  amc: 'Nippon India', category: 'Index Fund - Large Cap', nav: '24.68', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '119598', schemeName: 'Nippon India Nifty 50 Index Fund - Direct Growth',  amc: 'Nippon India', category: 'Index Fund - Large Cap', nav: 24.68, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 1.1, '3M': 4.2, '6M': 8.6, '1Y': 22.8, '3Y': 17.2, '5Y': 15.4 }, risk: { standardDeviation: 13.8, sharpeRatio: 1.28, maxDrawdown: 15.2 }, rating: { morningstar: 3, valueResearch: 3 } },
-  { schemeCode: '100476', schemeName: 'Franklin India Prima Fund - Direct Growth',          amc: 'Franklin Templeton', category: 'Equity - Mid Cap', nav: '2148.52', date: new Date().toISOString().slice(0,10),
+  { schemeCode: '100476', schemeName: 'Franklin India Prima Fund - Direct Growth',          amc: 'Franklin Templeton', category: 'Equity - Mid Cap', nav: 2148.52, date: new Date().toISOString().slice(0,10),
     returns: { '1M': 2.4, '3M': 7.2, '6M': 14.8, '1Y': 35.4, '3Y': 22.6, '5Y': 18.8 }, risk: { standardDeviation: 17.4, sharpeRatio: 1.54, maxDrawdown: 18.6 }, rating: { morningstar: 4, valueResearch: 4 } }
 ];
 
