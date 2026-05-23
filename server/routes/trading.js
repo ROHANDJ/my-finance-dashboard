@@ -1,442 +1,331 @@
 const express = require('express');
-const KiteConnect = require('kiteconnect').KiteConnect;
+const axios = require('axios');
 const auth = require('../middleware/auth');
+const upstoxService = require('../services/upstoxService');
+const { getQuote } = require('../services/marketDataService');
+
 const router = express.Router();
 
-class TradingService {
-  constructor() {
-    this.kiteConnections = new Map();
-  }
-
-  async initializeKiteConnection(userId, apiKey, accessToken) {
-    try {
-      const kite = new KiteConnect({
-        api_key: apiKey,
-        access_token: accessToken
-      });
-
-      this.kiteConnections.set(userId, kite);
-      return kite;
-    } catch (error) {
-      console.error('Error initializing Kite connection:', error);
-      throw error;
-    }
-  }
-
-  async getKiteConnection(userId) {
-    return this.kiteConnections.get(userId);
-  }
-
-  async placeOrder(userId, orderDetails) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const order = {
-        exchange: orderDetails.exchange,
-        tradingsymbol: orderDetails.symbol,
-        quantity: orderDetails.quantity,
-        transaction_type: orderDetails.transactionType,
-        order_type: orderDetails.orderType,
-        product: orderDetails.product,
-        price: orderDetails.price,
-        validity: 'DAY'
-      };
-
-      if (orderDetails.stopLoss) {
-        order.trigger_price = orderDetails.stopLoss;
-        order.order_type = 'SL';
-      }
-
-      const response = await kite.placeOrder(order);
-      return response;
-    } catch (error) {
-      console.error('Error placing order:', error);
-      throw error;
-    }
-  }
-
-  async cancelOrder(userId, orderId) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const response = await kite.cancelOrder(orderId);
-      return response;
-    } catch (error) {
-      console.error('Error cancelling order:', error);
-      throw error;
-    }
-  }
-
-  async getOrders(userId) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const orders = await kite.getOrders();
-      return orders;
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      throw error;
-    }
-  }
-
-  async getPositions(userId) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const positions = await kite.getPositions();
-      return positions;
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-      throw error;
-    }
-  }
-
-  async getHoldings(userId) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const holdings = await kite.getHoldings();
-      return holdings;
-    } catch (error) {
-      console.error('Error fetching holdings:', error);
-      throw error;
-    }
-  }
-
-  async getMargins(userId) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const margins = await kite.getMargins();
-      return margins;
-    } catch (error) {
-      console.error('Error fetching margins:', error);
-      throw error;
-    }
-  }
-
-  async getInstruments(userId, exchange = 'NSE') {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const instruments = await kite.getInstruments(exchange);
-      return instruments;
-    } catch (error) {
-      console.error('Error fetching instruments:', error);
-      throw error;
-    }
-  }
-
-  async getQuote(userId, exchange, tradingsymbol) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const quote = await kite.getQuote(exchange, tradingsymbol);
-      return quote;
-    } catch (error) {
-      console.error('Error fetching quote:', error);
-      throw error;
-    }
-  }
-
-  async getHistoricalData(userId, instrumentToken, from_date, to_date, interval) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const historicalData = await kite.getHistoricalData(
-        instrumentToken,
-        from_date,
-        to_date,
-        interval
-      );
-      return historicalData;
-    } catch (error) {
-      console.error('Error fetching historical data:', error);
-      throw error;
-    }
-  }
-
-  async modifyOrder(userId, orderId, modifications) {
-    try {
-      const kite = await this.getKiteConnection(userId);
-      if (!kite) {
-        throw new Error('Trading connection not established');
-      }
-
-      const response = await kite.modifyOrder(orderId, modifications);
-      return response;
-    } catch (error) {
-      console.error('Error modifying order:', error);
-      throw error;
-    }
-  }
-
-  validateOrder(orderDetails) {
-    const errors = [];
-
-    if (!orderDetails.symbol) {
-      errors.push('Symbol is required');
-    }
-
-    if (!orderDetails.quantity || orderDetails.quantity <= 0) {
-      errors.push('Valid quantity is required');
-    }
-
-    if (!orderDetails.transactionType || !['BUY', 'SELL'].includes(orderDetails.transactionType)) {
-      errors.push('Valid transaction type (BUY/SELL) is required');
-    }
-
-    if (!orderDetails.orderType || !['MARKET', 'LIMIT', 'SL'].includes(orderDetails.orderType)) {
-      errors.push('Valid order type (MARKET/LIMIT/SL) is required');
-    }
-
-    if (!orderDetails.product || !['CNC', 'NRML', 'MIS'].includes(orderDetails.product)) {
-      errors.push('Valid product type (CNC/NRML/MIS) is required');
-    }
-
-    if (orderDetails.orderType === 'LIMIT' && (!orderDetails.price || orderDetails.price <= 0)) {
-      errors.push('Price is required for limit orders');
-    }
-
-    if (orderDetails.orderType === 'SL' && (!orderDetails.stopLoss || orderDetails.stopLoss <= 0)) {
-      errors.push('Stop loss is required for stop loss orders');
-    }
-
-    return errors;
-  }
-
-  calculateOrderValue(quantity, price) {
-    return quantity * price;
-  }
-
-  calculateCharges(orderValue, exchange = 'NSE') {
-    const brokerage = orderValue * 0.0001;
-    const stt = orderValue * 0.0006;
-    const transactionCharges = orderValue * 0.000045;
-    const gst = (brokerage + transactionCharges) * 0.18;
-    const sebiCharges = orderValue * 0.0000005;
-    const stampDuty = exchange === 'NSE' ? orderValue * 0.00015 : orderValue * 0.00002;
-
-    const totalCharges = brokerage + stt + transactionCharges + gst + sebiCharges + stampDuty;
-
-    return {
-      brokerage,
-      stt,
-      transactionCharges,
-      gst,
-      sebiCharges,
-      stampDuty,
-      totalCharges
-    };
-  }
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function needsAuth(res) {
+  return res.status(401).json({ message: 'Connect Upstox to use trading features', needsAuth: true });
 }
 
-const tradingService = new TradingService();
+function calculateCharges(orderValue, exchange = 'NSE') {
+  const brokerage           = orderValue * 0.0001;
+  const stt                 = orderValue * 0.0006;
+  const transactionCharges  = orderValue * 0.000045;
+  const gst                 = (brokerage + transactionCharges) * 0.18;
+  const sebiCharges         = orderValue * 0.0000005;
+  const stampDuty           = exchange === 'NSE' ? orderValue * 0.00015 : orderValue * 0.00002;
+  const totalCharges        = brokerage + stt + transactionCharges + gst + sebiCharges + stampDuty;
+  return { brokerage, stt, transactionCharges, gst, sebiCharges, stampDuty, totalCharges };
+}
 
-router.post('/connect', auth, async (req, res) => {
-  try {
-    const { apiKey, accessToken } = req.body;
+function validateOrder(o) {
+  const errs = [];
+  if (!o.symbol)                                                           errs.push('Symbol is required');
+  if (!o.quantity || o.quantity <= 0)                                      errs.push('Valid quantity is required');
+  if (!['BUY', 'SELL'].includes(o.transactionType))                       errs.push('transactionType must be BUY or SELL');
+  if (!['MARKET', 'LIMIT', 'SL', 'SL-M'].includes(o.orderType))          errs.push('orderType must be MARKET/LIMIT/SL/SL-M');
+  if (!['CNC', 'INTRADAY', 'CO', 'OCO'].includes(o.product))             errs.push('product must be CNC/INTRADAY/CO/OCO');
+  if (o.orderType === 'LIMIT' && !(o.price > 0))                          errs.push('price required for LIMIT orders');
+  if (['SL', 'SL-M'].includes(o.orderType) && !(o.triggerPrice > 0))     errs.push('triggerPrice required for SL orders');
+  return errs;
+}
 
-    if (!apiKey || !accessToken) {
-      return res.status(400).json({ message: 'API key and access token are required' });
-    }
+// Map Upstox order → our standard shape
+function mapOrder(o) {
+  return {
+    orderId:         o.order_id,
+    symbol:          o.tradingsymbol,
+    exchange:        o.exchange,
+    transactionType: o.transaction_type,
+    orderType:       o.order_type,
+    product:         o.product,
+    quantity:        o.quantity,
+    filledQty:       o.filled_quantity,
+    price:           o.price,
+    triggerPrice:    o.trigger_price,
+    status:          o.status,
+    statusMessage:   o.status_message,
+    averagePrice:    o.average_price,
+    placedAt:        o.order_timestamp,
+    exchange_order_id: o.exchange_order_id,
+  };
+}
 
-    await tradingService.initializeKiteConnection(req.userId, apiKey, accessToken);
-    
-    res.json({ message: 'Trading connection established successfully' });
-  } catch (error) {
-    console.error('Error establishing trading connection:', error);
-    res.status(500).json({ message: 'Error establishing trading connection' });
-  }
-});
-
-router.post('/order', auth, async (req, res) => {
-  try {
-    const orderDetails = req.body;
-
-    const validationErrors = tradingService.validateOrder(orderDetails);
-    if (validationErrors.length > 0) {
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: validationErrors 
-      });
-    }
-
-    const orderValue = tradingService.calculateOrderValue(
-      orderDetails.quantity, 
-      orderDetails.price || 0
-    );
-
-    const charges = tradingService.calculateCharges(orderValue);
-
-    const orderResponse = await tradingService.placeOrder(req.userId, orderDetails);
-
-    res.json({ 
-      message: 'Order placed successfully',
-      order: orderResponse,
-      charges
-    });
-  } catch (error) {
-    console.error('Error placing order:', error);
-    res.status(500).json({ message: 'Error placing order' });
-  }
-});
-
-router.delete('/order/:orderId', auth, async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    const response = await tradingService.cancelOrder(req.userId, orderId);
-    
-    res.json({ message: 'Order cancelled successfully', response });
-  } catch (error) {
-    console.error('Error cancelling order:', error);
-    res.status(500).json({ message: 'Error cancelling order' });
-  }
-});
-
-router.put('/order/:orderId', auth, async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const modifications = req.body;
-
-    const response = await tradingService.modifyOrder(req.userId, orderId, modifications);
-    
-    res.json({ message: 'Order modified successfully', response });
-  } catch (error) {
-    console.error('Error modifying order:', error);
-    res.status(500).json({ message: 'Error modifying order' });
-  }
-});
-
+// ---------------------------------------------------------------------------
+// GET /orders
+// ---------------------------------------------------------------------------
 router.get('/orders', auth, async (req, res) => {
   try {
-    const orders = await tradingService.getOrders(req.userId);
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const { data } = await axios.get('https://api.upstox.com/v2/order/retrieve-all', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      timeout: 10000,
+    });
+
+    const orders = (data?.data || []).map(mapOrder);
     res.json({ orders });
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ message: 'Error fetching orders' });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching orders:', err.message);
+    res.status(500).json({ message: 'Failed to fetch orders' });
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /positions
+// ---------------------------------------------------------------------------
 router.get('/positions', auth, async (req, res) => {
   try {
-    const positions = await tradingService.getPositions(req.userId);
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const { data } = await axios.get('https://api.upstox.com/v2/portfolio/short-term-positions', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      timeout: 10000,
+    });
+
+    const positions = (data?.data || []).map(p => ({
+      symbol:          p.tradingsymbol,
+      exchange:        p.exchange,
+      product:         p.product,
+      quantity:        p.quantity,
+      overnight_qty:   p.overnight_quantity,
+      buyPrice:        p.buy_price,
+      sellPrice:       p.sell_price,
+      buyQty:          p.buy_quantity,
+      sellQty:         p.sell_quantity,
+      ltp:             p.last_price,
+      pnl:             p.pnl,
+      dayChange:       p.day_buy_price ? (p.last_price - p.buy_price) : 0,
+      value:           p.last_price * Math.abs(p.quantity),
+    }));
+
     res.json({ positions });
-  } catch (error) {
-    console.error('Error fetching positions:', error);
-    res.status(500).json({ message: 'Error fetching positions' });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching positions:', err.message);
+    res.status(500).json({ message: 'Failed to fetch positions' });
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /holdings
+// ---------------------------------------------------------------------------
 router.get('/holdings', auth, async (req, res) => {
   try {
-    const holdings = await tradingService.getHoldings(req.userId);
-    res.json({ holdings });
-  } catch (error) {
-    console.error('Error fetching holdings:', error);
-    res.status(500).json({ message: 'Error fetching holdings' });
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const result = await upstoxService.getHoldings(token);
+    res.json(result);
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching holdings:', err.message);
+    res.status(500).json({ message: 'Failed to fetch holdings' });
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /margins
+// ---------------------------------------------------------------------------
 router.get('/margins', auth, async (req, res) => {
   try {
-    const margins = await tradingService.getMargins(req.userId);
-    res.json({ margins });
-  } catch (error) {
-    console.error('Error fetching margins:', error);
-    res.status(500).json({ message: 'Error fetching margins' });
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const result = await upstoxService.getFunds(token);
+    res.json(result);
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching margins:', err.message);
+    res.status(500).json({ message: 'Failed to fetch margins' });
   }
 });
 
-router.get('/instruments', auth, async (req, res) => {
+// ---------------------------------------------------------------------------
+// POST /order  (place order)
+// ---------------------------------------------------------------------------
+router.post('/order', auth, async (req, res) => {
   try {
-    const { exchange = 'NSE' } = req.query;
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
 
-    const instruments = await tradingService.getInstruments(req.userId, exchange);
-    res.json({ instruments });
-  } catch (error) {
-    console.error('Error fetching instruments:', error);
-    res.status(500).json({ message: 'Error fetching instruments' });
+    const orderDetails = req.body;
+    const errors = validateOrder(orderDetails);
+    if (errors.length) return res.status(400).json({ message: 'Validation failed', errors });
+
+    const price = parseFloat(orderDetails.price) || 0;
+    const orderValue = orderDetails.quantity * price;
+    const charges = calculateCharges(orderValue, orderDetails.exchange || 'NSE');
+
+    const payload = {
+      quantity:         parseInt(orderDetails.quantity),
+      product:          orderDetails.product,
+      validity:         'DAY',
+      price:            price,
+      tag:              'FinanceHub',
+      instrument_token: `${orderDetails.exchange || 'NSE_EQ'}|${orderDetails.symbol}`,
+      order_type:       orderDetails.orderType,
+      transaction_type: orderDetails.transactionType,
+      disclosed_quantity: 0,
+      trigger_price:    parseFloat(orderDetails.triggerPrice) || 0,
+      is_amo:           false,
+    };
+
+    const { data } = await axios.post('https://api.upstox.com/v2/order/place', payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      timeout: 15000,
+    });
+
+    res.json({ message: 'Order placed successfully', order: data?.data, charges });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    const msg = err?.response?.data?.message || err?.response?.data?.errors?.[0]?.message || 'Failed to place order';
+    console.error('Error placing order:', msg);
+    res.status(err?.response?.status || 500).json({ message: msg });
   }
 });
 
-router.get('/quote/:exchange/:tradingsymbol', auth, async (req, res) => {
+// ---------------------------------------------------------------------------
+// DELETE /order/:orderId
+// ---------------------------------------------------------------------------
+router.delete('/order/:orderId', auth, async (req, res) => {
   try {
-    const { exchange, tradingsymbol } = req.params;
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
 
-    const quote = await tradingService.getQuote(req.userId, exchange, tradingsymbol);
-    res.json({ quote });
-  } catch (error) {
-    console.error('Error fetching quote:', error);
-    res.status(500).json({ message: 'Error fetching quote' });
+    const { orderId } = req.params;
+    const { data } = await axios.delete(`https://api.upstox.com/v2/order/cancel?order_id=${orderId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      timeout: 10000,
+    });
+
+    res.json({ message: 'Order cancelled successfully', data: data?.data });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error cancelling order:', err.message);
+    res.status(500).json({ message: 'Failed to cancel order' });
   }
 });
 
-router.get('/historical/:instrumentToken', auth, async (req, res) => {
+// ---------------------------------------------------------------------------
+// PUT /order/:orderId  (modify)
+// ---------------------------------------------------------------------------
+router.put('/order/:orderId', auth, async (req, res) => {
   try {
-    const { instrumentToken } = req.params;
-    const { from_date, to_date, interval = 'day' } = req.query;
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
 
-    if (!from_date || !to_date) {
-      return res.status(400).json({ message: 'From date and to date are required' });
-    }
+    const { orderId } = req.params;
+    const mods = req.body;
 
-    const historicalData = await tradingService.getHistoricalData(
-      req.userId,
-      parseInt(instrumentToken),
-      from_date,
-      to_date,
-      interval
-    );
+    const payload = {
+      order_id:      orderId,
+      quantity:      parseInt(mods.quantity),
+      validity:      'DAY',
+      price:         parseFloat(mods.price) || 0,
+      order_type:    mods.orderType,
+      trigger_price: parseFloat(mods.triggerPrice) || 0,
+      disclosed_quantity: 0,
+    };
 
-    res.json({ data: historicalData });
-  } catch (error) {
-    console.error('Error fetching historical data:', error);
-    res.status(500).json({ message: 'Error fetching historical data' });
+    const { data } = await axios.put('https://api.upstox.com/v2/order/modify', payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    });
+
+    res.json({ message: 'Order modified successfully', data: data?.data });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error modifying order:', err.message);
+    res.status(500).json({ message: 'Failed to modify order' });
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /order/:orderId  (order details)
+// ---------------------------------------------------------------------------
+router.get('/order/:orderId', auth, async (req, res) => {
+  try {
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const { orderId } = req.params;
+    const { data } = await axios.get(`https://api.upstox.com/v2/order/details?order_id=${orderId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      timeout: 10000,
+    });
+
+    res.json({ order: mapOrder(data?.data || {}) });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching order:', err.message);
+    res.status(500).json({ message: 'Failed to fetch order details' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /order/:orderId/trades  (fill history)
+// ---------------------------------------------------------------------------
+router.get('/order/:orderId/trades', auth, async (req, res) => {
+  try {
+    const token = upstoxService.getToken(req.userId);
+    if (!token) return needsAuth(res);
+
+    const { orderId } = req.params;
+    const { data } = await axios.get(`https://api.upstox.com/v2/order/trades?order_id=${orderId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      timeout: 10000,
+    });
+
+    res.json({ trades: data?.data || [] });
+  } catch (err) {
+    if (err?.response?.status === 401) return needsAuth(res);
+    console.error('Error fetching trades:', err.message);
+    res.status(500).json({ message: 'Failed to fetch trades' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /calculate-charges  (pre-trade cost estimate)
+// ---------------------------------------------------------------------------
 router.post('/calculate-charges', auth, async (req, res) => {
   try {
     const { orderValue, exchange = 'NSE' } = req.body;
+    if (!orderValue || orderValue <= 0) return res.status(400).json({ message: 'Valid orderValue required' });
+    res.json({ charges: calculateCharges(orderValue, exchange) });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to calculate charges' });
+  }
+});
 
-    if (!orderValue || orderValue <= 0) {
-      return res.status(400).json({ message: 'Valid order value is required' });
-    }
-
-    const charges = tradingService.calculateCharges(orderValue, exchange);
-    res.json({ charges });
-  } catch (error) {
-    console.error('Error calculating charges:', error);
-    res.status(500).json({ message: 'Error calculating charges' });
+// ---------------------------------------------------------------------------
+// GET /quote/:symbol  (live quote via market service, no Upstox needed)
+// ---------------------------------------------------------------------------
+router.get('/quote/:symbol', auth, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { market = 'IN' } = req.query;
+    const quote = await getQuote(symbol, market);
+    res.json({ quote });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to fetch quote' });
   }
 });
 

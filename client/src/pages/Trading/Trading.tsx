@@ -15,11 +15,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   LinearProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   FormControl,
   InputLabel,
   Select,
@@ -35,55 +31,49 @@ import {
   Remove,
   TrendingUp,
   TrendingDown,
-  AccountBalance,
-  Timeline,
+  LinkOff,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Order {
   orderId: string;
   symbol: string;
   exchange: string;
   transactionType: 'BUY' | 'SELL';
-  orderType: 'MARKET' | 'LIMIT' | 'SL';
+  orderType: string;
   quantity: number;
   price: number;
-      status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
-  orderTimestamp: string;
+  filledQty?: number;
+  averagePrice?: number;
+  status: string;
+  statusMessage?: string;
+  placedAt: string;
 }
 
 interface Position {
   symbol: string;
   exchange: string;
-      product: 'CNC' | 'NRML' | 'MIS';
+  product: string;
   quantity: number;
-  averagePrice: number;
-  lastPrice: number;
+  buyPrice: number;
+  ltp: number;
   pnl: number;
+  value: number;
 }
 
 interface Holding {
   symbol: string;
+  name: string;
   exchange: string;
   quantity: number;
   averagePrice: number;
-  lastPrice: number;
+  currentPrice: number;
   pnl: number;
-}
-
-interface Margin {
-  equity: {
-    used: number;
-    available: number;
-    net: number;
-  };
-  commodity: {
-    used: number;
-    available: number;
-    net: number;
-  };
+  dayChange: number;
+  dayChangePercent: number;
+  value: number;
 }
 
 interface TabPanelProps {
@@ -92,414 +82,289 @@ interface TabPanelProps {
   value: number;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`tabpanel-${index}`}
-    >
-      {value === index && <Box>{children}</Box>}
-    </div>
-  );
-};
+const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
+  <div role="tabpanel" hidden={value !== index}>
+    {value === index && <Box>{children}</Box>}
+  </div>
+);
 
 const Trading: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const navigate = useNavigate();
+  const [orders, setOrders]       = useState<Order[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [margins, setMargins] = useState<Margin | null>(null);
+  const [holdings, setHoldings]   = useState<Holding[]>([]);
+  const [funds, setFunds]         = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
-  const [openOrderDialog, setOpenOrderDialog] = useState(false);
-  
-  // Order form state
+  const [tabValue, setTabValue]   = useState(0);
+  const [needsUpstox, setNeedsUpstox] = useState(false);
+
   const [orderForm, setOrderForm] = useState({
     symbol: '',
-    exchange: 'NSE',
+    exchange: 'NSE_EQ',
     transactionType: 'BUY' as 'BUY' | 'SELL',
-    orderType: 'LIMIT' as 'MARKET' | 'LIMIT' | 'SL',
+    orderType: 'LIMIT' as string,
     quantity: '',
     price: '',
-    product: 'CNC' as 'CNC' | 'NRML' | 'MIS',
+    triggerPrice: '',
+    product: 'CNC' as string,
   });
 
-  useEffect(() => {
-    fetchTradingData();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const fetchTradingData = async () => {
+  const fetchAll = async () => {
     setIsLoading(true);
+    setNeedsUpstox(false);
     try {
-      const [ordersRes, positionsRes, holdingsRes, marginsRes] = await Promise.all([
+      const [ordersRes, positionsRes, holdingsRes, fundsRes] = await Promise.allSettled([
         axios.get('/api/trading/orders'),
         axios.get('/api/trading/positions'),
         axios.get('/api/trading/holdings'),
         axios.get('/api/trading/margins'),
       ]);
 
-      setOrders(ordersRes.data.orders || []);
-      setPositions(positionsRes.data.positions || []);
-      setHoldings(holdingsRes.data.holdings || []);
-      setMargins(marginsRes.data.margins || null);
-      setIsConnected(true);
-    } catch (error) {
-      console.error('Trading data fetch error:', error);
-      setIsConnected(false);
+      // Check if any returned needsAuth
+      const anyNeedsAuth = [ordersRes, positionsRes, holdingsRes, fundsRes].some(r =>
+        r.status === 'rejected' && (r.reason?.response?.data?.needsAuth || r.reason?.response?.status === 401)
+      );
+      if (anyNeedsAuth) { setNeedsUpstox(true); return; }
+
+      if (ordersRes.status === 'fulfilled')    setOrders(ordersRes.value.data.orders || []);
+      if (positionsRes.status === 'fulfilled') setPositions(positionsRes.value.data.positions || []);
+      if (holdingsRes.status === 'fulfilled')  setHoldings(holdingsRes.value.data.holdings || []);
+      if (fundsRes.status === 'fulfilled')     setFunds(fundsRes.value.data);
+    } catch {
+      setNeedsUpstox(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const connectTrading = async () => {
-    try {
-      await axios.post('/api/trading/connect', {
-        apiKey: 'demo_key',
-        accessToken: 'demo_token'
-      });
-      setIsConnected(true);
-      toast.success('Trading account connected successfully');
-      fetchTradingData();
-    } catch (error) {
-      toast.error('Failed to connect trading account');
-    }
-  };
-
-  const placeOrder = async () => {
+  const placeOrder = async (side: 'BUY' | 'SELL') => {
     if (!orderForm.symbol || !orderForm.quantity) {
-      toast.error('Please fill all required fields');
+      toast.error('Symbol and quantity are required');
       return;
     }
-
     try {
       await axios.post('/api/trading/order', {
         ...orderForm,
+        transactionType: side,
         quantity: parseInt(orderForm.quantity),
-        price: orderForm.orderType === 'MARKET' ? 0 : parseFloat(orderForm.price),
+        price: parseFloat(orderForm.price) || 0,
+        triggerPrice: parseFloat(orderForm.triggerPrice) || 0,
       });
-
       toast.success('Order placed successfully');
-      setOpenOrderDialog(false);
-      setOrderForm({
-        symbol: '',
-        exchange: 'NSE',
-        transactionType: 'BUY',
-        orderType: 'LIMIT',
-        quantity: '',
-        price: '',
-        product: 'CNC',
-      });
-      fetchTradingData();
-    } catch (error) {
-      toast.error('Failed to place order');
+      setOrderForm(f => ({ ...f, symbol: '', quantity: '', price: '', triggerPrice: '' }));
+      fetchAll();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to place order');
     }
   };
 
   const cancelOrder = async (orderId: string) => {
     try {
       await axios.delete(`/api/trading/order/${orderId}`);
-      toast.success('Order cancelled successfully');
-      fetchTradingData();
-    } catch (error) {
+      toast.success('Order cancelled');
+      fetchAll();
+    } catch {
       toast.error('Failed to cancel order');
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const fmt = (n: number) => new Intl.NumberFormat('en-IN', {
+    style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(n || 0);
 
-  const mockOrders: Order[] = [
-    {
-      orderId: 'ORD001',
-      symbol: 'RELIANCE',
-      exchange: 'NSE',
-      transactionType: 'BUY',
-      orderType: 'LIMIT',
-      quantity: 10,
-      price: 2850,
-      status: 'COMPLETED',
-      orderTimestamp: '2024-01-08T10:30:00Z',
-    },
-    {
-      orderId: 'ORD002',
-      symbol: 'TCS',
-      exchange: 'NSE',
-      transactionType: 'BUY',
-      orderType: 'MARKET',
-      quantity: 5,
-      price: 3450,
-      status: 'PENDING',
-      orderTimestamp: '2024-01-08T11:15:00Z',
-    },
-  ];
+  const totalPnl = positions.reduce((s, p) => s + (p.pnl || 0), 0);
 
-  const mockPositions: Position[] = [
-    {
-      symbol: 'RELIANCE',
-      exchange: 'NSE',
-      product: 'CNC',
-      quantity: 10,
-      averagePrice: 2850,
-      lastPrice: 2875,
-      pnl: 250,
-    },
-    {
-      symbol: 'TCS',
-      exchange: 'NSE',
-      product: 'NRML',
-      quantity: 5,
-      averagePrice: 3450,
-      lastPrice: 3435,
-      pnl: -75,
-    },
-  ];
+  // ── Not connected banner ────────────────────────────────────────────────
+  if (!isLoading && needsUpstox) {
+    return (
+      <Box>
+        <Typography variant="h4" fontWeight={600} mb={3}>Trading</Typography>
+        <Card sx={{ textAlign: 'center', py: 8 }}>
+          <CardContent>
+            <LinkOff sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" gutterBottom>Upstox Not Connected</Typography>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Connect your Upstox account to view live orders, positions, holdings and place trades.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<SwapHoriz />}
+              onClick={() => navigate('/portfolio')}
+            >
+              Connect Upstox on Portfolio Page
+            </Button>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
 
-  const mockHoldings: Holding[] = [
-    {
-      symbol: 'HDFCBANK',
-      exchange: 'NSE',
-      quantity: 20,
-      averagePrice: 1650,
-      lastPrice: 1670,
-      pnl: 400,
-    },
-    {
-      symbol: 'INFY',
-      exchange: 'NSE',
-      quantity: 15,
-      averagePrice: 1450,
-      lastPrice: 1460,
-      pnl: 150,
-    },
-  ];
-
-  const mockMargins: Margin = {
-    equity: {
-      used: 50000,
-      available: 150000,
-      net: 200000,
-    },
-    commodity: {
-      used: 0,
-      available: 50000,
-      net: 50000,
-    },
-  };
-
-  const displayOrders = orders.length > 0 ? orders : mockOrders;
-  const displayPositions = positions.length > 0 ? positions : mockPositions;
-  const displayHoldings = holdings.length > 0 ? holdings : mockHoldings;
-  const displayMargins = margins || mockMargins;
-
-  const mockChartData = [
-    { time: '09:15', price: 2850 },
-    { time: '10:00', price: 2860 },
-    { time: '10:30', price: 2855 },
-    { time: '11:00', price: 2870 },
-    { time: '11:30', price: 2875 },
-    { time: '12:00', price: 2872 },
-  ];
+  if (isLoading) {
+    return (
+      <Box>
+        <Typography variant="h4" fontWeight={600} mb={3}>Trading</Typography>
+        <LinearProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>
-          Trading
-        </Typography>
-        <Box display="flex" gap={2}>
-          <Chip
-            label={isConnected ? 'Connected' : 'Not Connected'}
-            color={isConnected ? 'success' : 'error'}
-            variant="outlined"
-          />
-          <Button
-            variant="contained"
-            startIcon={<SwapHoriz />}
-            onClick={connectTrading}
-            disabled={isConnected}
-          >
-            {isConnected ? 'Connected' : 'Connect Account'}
-          </Button>
-          <IconButton onClick={fetchTradingData} color="primary">
-            <Refresh />
-          </IconButton>
+        <Typography variant="h4" fontWeight={600}>Trading</Typography>
+        <Box display="flex" gap={2} alignItems="center">
+          <Chip label="Upstox Connected" color="success" variant="outlined" size="small" />
+          <IconButton onClick={fetchAll} color="primary"><Refresh /></IconButton>
         </Box>
       </Box>
 
-      {!isConnected && (
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          Please connect your trading account to start live trading. This is a demo mode.
-        </Alert>
-      )}
-
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
           <Tab label="Dashboard" />
-          <Tab label="Orders" />
-          <Tab label="Positions" />
-          <Tab label="Holdings" />
-          <Tab label="Margins" />
+          <Tab label={`Orders (${orders.length})`} />
+          <Tab label={`Positions (${positions.length})`} />
+          <Tab label={`Holdings (${holdings.length})`} />
+          <Tab label="Funds" />
         </Tabs>
       </Box>
 
+      {/* ── Dashboard ──────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={0}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={3}>
+          {funds && (
+            <>
+              <Grid item xs={12} sm={6} lg={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Available Funds</Typography>
+                    <Typography variant="h5" fontWeight={700}>
+                      {fmt(funds.equity?.available_margin ?? funds.available_margin ?? 0)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} lg={3}>
+                <Card>
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>Used Margin</Typography>
+                    <Typography variant="h5" fontWeight={700} color="warning.main">
+                      {fmt(funds.equity?.used_margin ?? funds.used_margin ?? 0)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </>
+          )}
+
+          <Grid item xs={12} sm={6} lg={3}>
             <Card>
               <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Available Margin
-                </Typography>
-                <Typography variant="h5" fontWeight={600}>
-                  {formatCurrency(displayMargins.equity.available)}
+                <Typography color="text.secondary" gutterBottom>Day P&amp;L</Typography>
+                <Typography
+                  variant="h5" fontWeight={700}
+                  color={totalPnl >= 0 ? 'success.main' : 'error.main'}
+                >
+                  {totalPnl >= 0 ? '+' : ''}{fmt(totalPnl)}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} sm={6} lg={3}>
             <Card>
               <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Used Margin
-                </Typography>
-                <Typography variant="h5" fontWeight={600} color="warning.main">
-                  {formatCurrency(displayMargins.equity.used)}
-                </Typography>
+                <Typography color="text.secondary" gutterBottom>Open Positions</Typography>
+                <Typography variant="h5" fontWeight={700}>{positions.length}</Typography>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={3}>
+          {/* Quick order form */}
+          <Grid item xs={12}>
             <Card>
               <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Total P&L
-                </Typography>
-                <Typography variant="h5" fontWeight={600} color="success.main">
-                  +{formatCurrency(displayPositions.reduce((sum, pos) => sum + pos.pnl, 0))}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Active Positions
-                </Typography>
-                <Typography variant="h5" fontWeight={600}>
-                  {displayPositions.length}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom fontWeight={600}>
-                  Quick Order
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
+                <Typography variant="h6" fontWeight={700} gutterBottom>Quick Order</Typography>
+                <Grid container spacing={2} alignItems="flex-end">
+                  <Grid item xs={6} sm={3} md={2}>
                     <TextField
-                      fullWidth
-                      label="Symbol"
+                      fullWidth size="small" label="Symbol"
                       value={orderForm.symbol}
-                      onChange={(e) => setOrderForm({...orderForm, symbol: e.target.value.toUpperCase()})}
+                      onChange={e => setOrderForm(f => ({ ...f, symbol: e.target.value.toUpperCase() }))}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <FormControl fullWidth size="small">
                       <InputLabel>Exchange</InputLabel>
-                      <Select
-                        value={orderForm.exchange}
-                        onChange={(e) => setOrderForm({...orderForm, exchange: e.target.value})}
-                      >
-                        <MenuItem value="NSE">NSE</MenuItem>
-                        <MenuItem value="BSE">BSE</MenuItem>
+                      <Select value={orderForm.exchange} label="Exchange"
+                        onChange={e => setOrderForm(f => ({ ...f, exchange: e.target.value }))}>
+                        <MenuItem value="NSE_EQ">NSE</MenuItem>
+                        <MenuItem value="BSE_EQ">BSE</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={6} sm={3} md={1}>
                     <TextField
-                      fullWidth
-                      label="Quantity"
-                      type="number"
+                      fullWidth size="small" label="Qty" type="number"
                       value={orderForm.quantity}
-                      onChange={(e) => setOrderForm({...orderForm, quantity: e.target.value})}
+                      onChange={e => setOrderForm(f => ({ ...f, quantity: e.target.value }))}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Price"
-                      type="number"
-                      value={orderForm.price}
-                      onChange={(e) => setOrderForm({...orderForm, price: e.target.value})}
-                      disabled={orderForm.orderType === 'MARKET'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <FormControl fullWidth size="small">
                       <InputLabel>Order Type</InputLabel>
-                      <Select
-                        value={orderForm.orderType}
-                        onChange={(e) => setOrderForm({...orderForm, orderType: e.target.value as any})}
-                      >
+                      <Select value={orderForm.orderType} label="Order Type"
+                        onChange={e => setOrderForm(f => ({ ...f, orderType: e.target.value }))}>
                         <MenuItem value="MARKET">Market</MenuItem>
                         <MenuItem value="LIMIT">Limit</MenuItem>
                         <MenuItem value="SL">Stop Loss</MenuItem>
+                        <MenuItem value="SL-M">SL-Market</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
+                  {orderForm.orderType !== 'MARKET' && orderForm.orderType !== 'SL-M' && (
+                    <Grid item xs={6} sm={3} md={2}>
+                      <TextField
+                        fullWidth size="small" label="Price" type="number"
+                        value={orderForm.price}
+                        onChange={e => setOrderForm(f => ({ ...f, price: e.target.value }))}
+                      />
+                    </Grid>
+                  )}
+                  {(orderForm.orderType === 'SL' || orderForm.orderType === 'SL-M') && (
+                    <Grid item xs={6} sm={3} md={2}>
+                      <TextField
+                        fullWidth size="small" label="Trigger Price" type="number"
+                        value={orderForm.triggerPrice}
+                        onChange={e => setOrderForm(f => ({ ...f, triggerPrice: e.target.value }))}
+                      />
+                    </Grid>
+                  )}
+                  <Grid item xs={6} sm={3} md={2}>
+                    <FormControl fullWidth size="small">
                       <InputLabel>Product</InputLabel>
-                      <Select
-                        value={orderForm.product}
-                        onChange={(e) => setOrderForm({...orderForm, product: e.target.value as any})}
-                      >
-                        <MenuItem value="CNC">CNC</MenuItem>
-                        <MenuItem value="NRML">NRML</MenuItem>
-                        <MenuItem value="MIS">MIS</MenuItem>
+                      <Select value={orderForm.product} label="Product"
+                        onChange={e => setOrderForm(f => ({ ...f, product: e.target.value }))}>
+                        <MenuItem value="CNC">CNC (Delivery)</MenuItem>
+                        <MenuItem value="INTRADAY">Intraday</MenuItem>
+                        <MenuItem value="CO">Cover Order</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Box display="flex" gap={2}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box display="flex" gap={1}>
                       <Button
-                        variant="contained"
-                        color="success"
+                        variant="contained" color="success" fullWidth
                         startIcon={<Add />}
-                        fullWidth
-                        onClick={() => {
-                          setOrderForm({...orderForm, transactionType: 'BUY'});
-                          placeOrder();
-                        }}
-                        disabled={!isConnected}
+                        onClick={() => placeOrder('BUY')}
                       >
                         BUY
                       </Button>
                       <Button
-                        variant="contained"
-                        color="error"
+                        variant="contained" color="error" fullWidth
                         startIcon={<Remove />}
-                        fullWidth
-                        onClick={() => {
-                          setOrderForm({...orderForm, transactionType: 'SELL'});
-                          placeOrder();
-                        }}
-                        disabled={!isConnected}
+                        onClick={() => placeOrder('SELL')}
                       >
                         SELL
                       </Button>
@@ -509,90 +374,69 @@ const Trading: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom fontWeight={600}>
-                  Recent Activity
-                </Typography>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={mockChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Line type="monotone" dataKey="price" stroke="#1976d2" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
         </Grid>
       </TabPanel>
 
+      {/* ── Orders ─────────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={1}>
         <Card>
           <CardContent>
-            <Typography variant="h6" gutterBottom fontWeight={600}>
-              Orders
-            </Typography>
-            {isLoading ? (
-              <LinearProgress />
+            <Typography variant="h6" fontWeight={700} gutterBottom>Today's Orders</Typography>
+            {orders.length === 0 ? (
+              <Typography color="text.secondary" textAlign="center" py={4}>No orders today</Typography>
             ) : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table>
+              <TableContainer>
+                <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Order ID</TableCell>
-                      <TableCell>Symbol</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Quantity</TableCell>
-                      <TableCell>Price</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="center">Action</TableCell>
+                      {['Order ID', 'Symbol', 'Side', 'Type', 'Qty', 'Price', 'Filled', 'Status', 'Action'].map(h => (
+                        <TableCell key={h}>{h}</TableCell>
+                      ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {displayOrders.map((order) => (
-                      <TableRow key={order.orderId} hover>
-                        <TableCell>{order.orderId}</TableCell>
+                    {orders.map(o => (
+                      <TableRow key={o.orderId} hover>
+                        <TableCell sx={{ fontSize: '0.75rem', color: '#64748b' }}>{o.orderId?.slice(-8)}</TableCell>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
-                            {order.symbol}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {order.exchange}
-                          </Typography>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{o.symbol}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{o.exchange}</Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={order.transactionType}
-                            size="small"
-                            color={order.transactionType === 'BUY' ? 'success' : 'error'}
-                            variant="outlined"
+                            label={o.transactionType} size="small"
+                            sx={{
+                              background: o.transactionType === 'BUY' ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)',
+                              color: o.transactionType === 'BUY' ? '#10b981' : '#f43f5e',
+                              fontWeight: 700, fontSize: '0.7rem',
+                            }}
                           />
                         </TableCell>
-                        <TableCell>{order.quantity}</TableCell>
-                        <TableCell>{formatCurrency(order.price)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>{o.orderType}</TableCell>
+                        <TableCell>{o.quantity}</TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem' }}>{o.price > 0 ? fmt(o.price) : 'MKT'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem', color: '#64748b' }}>{o.filledQty ?? '-'}</TableCell>
                         <TableCell>
                           <Chip
-                            label={order.status}
-                            size="small"
-                            color={
-                              order.status === 'COMPLETED' ? 'success' :
-                              order.status === 'PENDING' ? 'warning' : 'error'
-                            }
-                            variant="outlined"
+                            label={o.status} size="small"
+                            sx={{
+                              fontSize: '0.65rem', fontWeight: 700,
+                              background:
+                                o.status === 'complete' ? 'rgba(16,185,129,0.15)' :
+                                o.status === 'open' || o.status === 'trigger pending' ? 'rgba(245,158,11,0.15)' :
+                                'rgba(148,163,184,0.1)',
+                              color:
+                                o.status === 'complete' ? '#10b981' :
+                                o.status === 'open' || o.status === 'trigger pending' ? '#f59e0b' :
+                                '#94a3b8',
+                            }}
                           />
                         </TableCell>
-                        <TableCell align="center">
-                          {order.status === 'PENDING' && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              onClick={() => cancelOrder(order.orderId)}
+                        <TableCell>
+                          {(o.status === 'open' || o.status === 'trigger pending') && (
+                            <Button size="small" color="error" variant="outlined"
+                              onClick={() => cancelOrder(o.orderId)}
+                              sx={{ fontSize: '0.7rem', py: 0 }}
                             >
                               Cancel
                             </Button>
@@ -608,166 +452,138 @@ const Trading: React.FC = () => {
         </Card>
       </TabPanel>
 
+      {/* ── Positions ──────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={2}>
         <Card>
           <CardContent>
-            <Typography variant="h6" gutterBottom fontWeight={600}>
-              Positions
-            </Typography>
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell>Product</TableCell>
-                    <TableCell>Quantity</TableCell>
-                    <TableCell>Avg Price</TableCell>
-                    <TableCell>Last Price</TableCell>
-                    <TableCell>P&L</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {displayPositions.map((position, index) => (
-                    <TableRow key={index} hover>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={600}>
-                          {position.symbol}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={position.product} size="small" variant="outlined" />
-                      </TableCell>
-                      <TableCell>{position.quantity}</TableCell>
-                      <TableCell>{formatCurrency(position.averagePrice)}</TableCell>
-                      <TableCell>{formatCurrency(position.lastPrice)}</TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          color={position.pnl >= 0 ? 'success.main' : 'error.main'}
-                        >
-                          {position.pnl >= 0 ? '+' : ''}
-                          {formatCurrency(Math.abs(position.pnl))}
-                        </Typography>
-                      </TableCell>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6" fontWeight={700}>Intraday Positions</Typography>
+              <Typography variant="body2" color={totalPnl >= 0 ? 'success.main' : 'error.main'} fontWeight={700}>
+                Day P&amp;L: {totalPnl >= 0 ? '+' : ''}{fmt(totalPnl)}
+              </Typography>
+            </Box>
+            {positions.length === 0 ? (
+              <Typography color="text.secondary" textAlign="center" py={4}>No open positions</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['Symbol', 'Product', 'Qty', 'Buy Avg', 'LTP', 'P&L', 'Value'].map(h => (
+                        <TableCell key={h}>{h}</TableCell>
+                      ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {positions.map((p, i) => (
+                      <TableRow key={i} hover>
+                        <TableCell>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{p.symbol}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{p.exchange}</Typography>
+                        </TableCell>
+                        <TableCell><Chip label={p.product} size="small" variant="outlined" sx={{ fontSize: '0.68rem' }} /></TableCell>
+                        <TableCell>{p.quantity}</TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem' }}>{fmt(p.buyPrice)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{fmt(p.ltp)}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: p.pnl >= 0 ? '#10b981' : '#f43f5e' }}>
+                            {p.pnl >= 0 ? <TrendingUp sx={{ fontSize: '0.9rem' }} /> : <TrendingDown sx={{ fontSize: '0.9rem' }} />}
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                              {p.pnl >= 0 ? '+' : ''}{fmt(p.pnl)}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{fmt(p.value)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </CardContent>
         </Card>
       </TabPanel>
 
+      {/* ── Holdings ───────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={3}>
         <Card>
           <CardContent>
-            <Typography variant="h6" gutterBottom fontWeight={600}>
-              Holdings
-            </Typography>
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell>Quantity</TableCell>
-                    <TableCell>Avg Price</TableCell>
-                    <TableCell>Last Price</TableCell>
-                    <TableCell>P&L</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {displayHoldings.map((holding, index) => (
-                    <TableRow key={index} hover>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={600}>
-                          {holding.symbol}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{holding.quantity}</TableCell>
-                      <TableCell>{formatCurrency(holding.averagePrice)}</TableCell>
-                      <TableCell>{formatCurrency(holding.lastPrice)}</TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          color={holding.pnl >= 0 ? 'success.main' : 'error.main'}
-                        >
-                          {holding.pnl >= 0 ? '+' : ''}
-                          {formatCurrency(Math.abs(holding.pnl))}
-                        </Typography>
-                      </TableCell>
+            <Typography variant="h6" fontWeight={700} gutterBottom>Long-term Holdings</Typography>
+            {holdings.length === 0 ? (
+              <Typography color="text.secondary" textAlign="center" py={4}>No holdings</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['Symbol', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Day Chg', 'Value'].map(h => (
+                        <TableCell key={h}>{h}</TableCell>
+                      ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {holdings.map((h, i) => (
+                      <TableRow key={i} hover>
+                        <TableCell>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{h.symbol}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{h.exchange}</Typography>
+                        </TableCell>
+                        <TableCell>{h.quantity}</TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem' }}>₹{h.averagePrice?.toFixed(2)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700 }}>₹{h.currentPrice?.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: h.pnl >= 0 ? '#10b981' : '#f43f5e' }}>
+                            {h.pnl >= 0 ? '+' : ''}{fmt(h.pnl)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem', color: h.dayChange >= 0 ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
+                          {h.dayChangePercent >= 0 ? '+' : ''}{h.dayChangePercent?.toFixed(2)}%
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{fmt(h.value)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </CardContent>
         </Card>
       </TabPanel>
 
+      {/* ── Funds ──────────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={4}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom fontWeight={600}>
-                  Equity Margins
-                </Typography>
-                <Box display="flex" flexDirection="column" gap={2}>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Available:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatCurrency(displayMargins.equity.available)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Used:</Typography>
-                    <Typography variant="body2" fontWeight={600} color="warning.main">
-                      {formatCurrency(displayMargins.equity.used)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Net:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatCurrency(displayMargins.equity.net)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
+        {funds ? (
+          <Grid container spacing={3}>
+            {Object.entries(funds).map(([segment, data]: [string, any]) => {
+              if (typeof data !== 'object' || data === null) return null;
+              return (
+                <Grid item xs={12} md={6} key={segment}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" fontWeight={700} gutterBottom sx={{ textTransform: 'capitalize' }}>
+                        {segment} Segment
+                      </Typography>
+                      <Box display="flex" flexDirection="column" gap={1.5}>
+                        {Object.entries(data).map(([k, v]) => (
+                          <Box key={k} display="flex" justifyContent="space-between">
+                            <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                              {k.replace(/_/g, ' ')}
+                            </Typography>
+                            <Typography variant="body2" fontWeight={600}>
+                              {typeof v === 'number' ? fmt(v as number) : String(v)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom fontWeight={600}>
-                  Commodity Margins
-                </Typography>
-                <Box display="flex" flexDirection="column" gap={2}>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Available:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatCurrency(displayMargins.commodity.available)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Used:</Typography>
-                    <Typography variant="body2" fontWeight={600} color="warning.main">
-                      {formatCurrency(displayMargins.commodity.used)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Net:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatCurrency(displayMargins.commodity.net)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        ) : (
+          <Typography color="text.secondary" textAlign="center" py={4}>No funds data</Typography>
+        )}
       </TabPanel>
     </Box>
   );
