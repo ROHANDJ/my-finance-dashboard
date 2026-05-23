@@ -1,0 +1,332 @@
+{
+  "D:\\Laptop backup\\DISK E\\project\\stock\\package.json": {
+    "mtime": 1779306464.7404103,
+    "ast_hash": "a95558e60fd368fbfe9ba5bb22061aa6",
+    "semantic_hash": "a95558e60fd368fbfe9ba5bb22061aa6"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\supabase_migration.sql": {
+    "mtime": 1779306550.227106,
+    "ast_hash": "84bb112fa9ff8c1033f8a54520c62128",
+    "semantic_hash": "84bb112fa9ff8c1033f8a54520c62128"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\vercel.json": {
+    "mtime": 1776883837.4490256,
+    "ast_hash": "0a7ced7f01871d796fbdad7fb36f6551",
+    "semantic_hash": "0a7ced7f01871d796fbdad7fb36f6551"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\api\\server.js": {
+    "mtime": 1778528104.5653355,
+    "ast_hash": "eda9ed6f0228449cf498d9d86fb78e98",
+    "semantic_hash": "eda9ed6f0228449cf498d9d86fb78e98"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\package.json": {
+    "mtime": 1772975795.311957,
+    "ast_hash": "5211cce1bef445696de9ebc3fbdc50cf",
+    "semantic_hash": "5211cce1bef445696de9ebc3fbdc50cf"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\tsconfig.json": {
+    "mtime": 1778524864.649779,
+    "ast_hash": "5a801da1c1fdb731a58c325ce06a1562",
+    "semantic_hash": "5a801da1c1fdb731a58c325ce06a1562"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\vercel.json": {
+    "mtime": 1775158158.9175837,
+    "ast_hash": "858d358146a555de89aa32f3819e01d7",
+    "semantic_hash": "858d358146a555de89aa32f3819e01d7"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\public\\manifest.json": {
+    "mtime": 1778528998.8044727,
+    "ast_hash": "e4534f4bf110ea51984689378928e538",
+    "semantic_hash": "e4534f4bf110ea51984689378928e538"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\App.tsx": {
+    "mtime": 1779307776.5270605,
+    "ast_hash": "ade260c3b6dfa69b9e8348bbeb52365d",
+    "semantic_hash": "ade260c3b6dfa69b9e8348bbeb52365d"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\index.tsx": {
+    "mtime": 1772979793.3177128,
+    "ast_hash": "8e88b6d244785bef6f35dda4659094e3",
+    "semantic_hash": "8e88b6d244785bef6f35dda4659094e3"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\TestApp.tsx": {
+    "mtime": 1772979717.079494,
+    "ast_hash": "c7272ca6c8d463cdd9232c8fd800f677",
+    "semantic_hash": "c7272ca6c8d463cdd9232c8fd800f677"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\components\\Auth\\ProtectedRoute.tsx": {
+    "mtime": 1772975867.0784068,
+    "ast_hash": "34ecd10f7bb82021ce670c367ecf2ea5",
+    "semantic_hash": "34ecd10f7bb82021ce670c367ecf2ea5"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\components\\Chatbot\\Chatbot.tsx": {
+    "mtime": 1772976413.6668916,
+    "ast_hash": "0426a3ad2b1b7370de10a0c7bb771774",
+    "semantic_hash": "0426a3ad2b1b7370de10a0c7bb771774"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\components\\Layout\\Layout.tsx": {
+    "mtime": 1779385679.1692517,
+    "ast_hash": "2e882910e3b33d97ad3b0bf4e243a964",
+    "semantic_hash": "2e882910e3b33d97ad3b0bf4e243a964"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\components\\MarketTicker\\MarketTicker.tsx": {
+    "mtime": 1779385616.1834612,
+    "ast_hash": "b0823c6f238dc8413d7ebfbbfb7a4ad7",
+    "semantic_hash": "b0823c6f238dc8413d7ebfbbfb7a4ad7"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\components\\UpstoxConnect\\UpstoxConnect.tsx": {
+    "mtime": 1779385665.8631973,
+    "ast_hash": "027a71572ee3c5b97e262d3174171b7d",
+    "semantic_hash": "027a71572ee3c5b97e262d3174171b7d"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\contexts\\AuthContext.tsx": {
+    "mtime": 1772976381.815394,
+    "ast_hash": "1df0498906497065f2efe85fb55c0ba2",
+    "semantic_hash": "1df0498906497065f2efe85fb55c0ba2"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\contexts\\SocketContext.tsx": {
+    "mtime": 1775159110.925601,
+    "ast_hash": "5b402017a1e277ed51a9d5b56c2b327a",
+    "semantic_hash": "5b402017a1e277ed51a9d5b56c2b327a"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Auth\\Login.tsx": {
+    "mtime": 1779307912.7140398,
+    "ast_hash": "487097f0838617dd52d824376a34bc4b",
+    "semantic_hash": "487097f0838617dd52d824376a34bc4b"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Auth\\Register.tsx": {
+    "mtime": 1772976409.6143513,
+    "ast_hash": "98dd8d5fa4018424c15fad918f14d3ea",
+    "semantic_hash": "98dd8d5fa4018424c15fad918f14d3ea"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Auth\\TestLogin.tsx": {
+    "mtime": 1772976865.2688563,
+    "ast_hash": "6002fff7a7dd1b92b2a0e6c1c625bb5f",
+    "semantic_hash": "6002fff7a7dd1b92b2a0e6c1c625bb5f"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\CASUpload\\CASUpload.tsx": {
+    "mtime": 1779304290.0576644,
+    "ast_hash": "aaae6c649debe5f089455e98bf29de63",
+    "semantic_hash": "aaae6c649debe5f089455e98bf29de63"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\CreditCards\\CreditCards.tsx": {
+    "mtime": 1776886184.2351882,
+    "ast_hash": "4eec98e9e3ebe741e22e0a22d54bca5d",
+    "semantic_hash": "4eec98e9e3ebe741e22e0a22d54bca5d"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\CreditCards\\index.ts": {
+    "mtime": 1775155857.197399,
+    "ast_hash": "e5e9472d0c21b886e0e75cc2b16941a6",
+    "semantic_hash": "e5e9472d0c21b886e0e75cc2b16941a6"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Dashboard\\Dashboard.tsx": {
+    "mtime": 1776884770.9572523,
+    "ast_hash": "fd72518d488cd75b61cad7364bfd5d0a",
+    "semantic_hash": "fd72518d488cd75b61cad7364bfd5d0a"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\EODDashboard\\EODDashboard.tsx": {
+    "mtime": 1775157935.4909916,
+    "ast_hash": "0346052b1c16bac454c77c7a69bc54b3",
+    "semantic_hash": "0346052b1c16bac454c77c7a69bc54b3"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\EODDashboard\\index.ts": {
+    "mtime": 1775155858.223611,
+    "ast_hash": "b92c7adb35ee225fc836f2ddfc6b06e6",
+    "semantic_hash": "b92c7adb35ee225fc836f2ddfc6b06e6"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Expenses\\Expenses.tsx": {
+    "mtime": 1775157935.3447964,
+    "ast_hash": "983e5e360137aa63f21d153f915fccd3",
+    "semantic_hash": "983e5e360137aa63f21d153f915fccd3"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Expenses\\index.ts": {
+    "mtime": 1775155856.1805587,
+    "ast_hash": "3abe5ea697fbc871c13f4b9779d74991",
+    "semantic_hash": "3abe5ea697fbc871c13f4b9779d74991"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\IPO\\IPO.tsx": {
+    "mtime": 1772976374.2375634,
+    "ast_hash": "c5b4bea20904efef4c619fb1564109c5",
+    "semantic_hash": "c5b4bea20904efef4c619fb1564109c5"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\MutualFunds\\MutualFunds.tsx": {
+    "mtime": 1779304531.192389,
+    "ast_hash": "6383dd9968ca486421e88dc373dcd208",
+    "semantic_hash": "6383dd9968ca486421e88dc373dcd208"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Optimization\\index.ts": {
+    "mtime": 1775155859.2347753,
+    "ast_hash": "33c76139f22caf8c51014ce72c9ce437",
+    "semantic_hash": "33c76139f22caf8c51014ce72c9ce437"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Optimization\\Optimization.tsx": {
+    "mtime": 1775157935.420459,
+    "ast_hash": "f575debce009d9613d27162fc4801035",
+    "semantic_hash": "f575debce009d9613d27162fc4801035"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Portfolio\\Portfolio.tsx": {
+    "mtime": 1779385699.4258566,
+    "ast_hash": "d7354d1b26ba96db2fc5049afce95b37",
+    "semantic_hash": "d7354d1b26ba96db2fc5049afce95b37"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Profile\\Profile.tsx": {
+    "mtime": 1772976354.4228556,
+    "ast_hash": "8db01e4ac494708bc80e1ecb0d32d9b9",
+    "semantic_hash": "8db01e4ac494708bc80e1ecb0d32d9b9"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Settings\\Settings.tsx": {
+    "mtime": 1772976377.410956,
+    "ast_hash": "bc0b6af8b414cc36786ad6892d628d11",
+    "semantic_hash": "bc0b6af8b414cc36786ad6892d628d11"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Stocks\\Stocks.tsx": {
+    "mtime": 1772976267.4114695,
+    "ast_hash": "cfb1e826ae960c5a81c00a29c643a9a5",
+    "semantic_hash": "cfb1e826ae960c5a81c00a29c643a9a5"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\src\\pages\\Trading\\Trading.tsx": {
+    "mtime": 1779479684.1841466,
+    "ast_hash": "651ec481039ff39762ef9eec60435d17",
+    "semantic_hash": "651ec481039ff39762ef9eec60435d17"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\index.js": {
+    "mtime": 1779385592.3258712,
+    "ast_hash": "917031e5b9d7228350a4a11ffa8831c0",
+    "semantic_hash": "917031e5b9d7228350a4a11ffa8831c0"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\lib\\supabase.js": {
+    "mtime": 1779306962.0098574,
+    "ast_hash": "25186f3af0cc3b569457ae61b39821f0",
+    "semantic_hash": "25186f3af0cc3b569457ae61b39821f0"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\middleware\\auth.js": {
+    "mtime": 1775209749.303738,
+    "ast_hash": "af8ae8339ab0bc28d25bfd19c26a3200",
+    "semantic_hash": "af8ae8339ab0bc28d25bfd19c26a3200"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\CreditCard.js": {
+    "mtime": 1775155354.602214,
+    "ast_hash": "65f2b9dc5c62a2fcdc9315add69f6f45",
+    "semantic_hash": "65f2b9dc5c62a2fcdc9315add69f6f45"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\Expense.js": {
+    "mtime": 1775155343.4628196,
+    "ast_hash": "ed9fe68cc0b6419866d850a2e11e13cf",
+    "semantic_hash": "ed9fe68cc0b6419866d850a2e11e13cf"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\IPO.js": {
+    "mtime": 1772975266.525905,
+    "ast_hash": "355580c6b83505cbe94d26b975876a35",
+    "semantic_hash": "355580c6b83505cbe94d26b975876a35"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\Portfolio.js": {
+    "mtime": 1772975252.1566062,
+    "ast_hash": "9cc3660886c5e0466e232d182009cdcc",
+    "semantic_hash": "9cc3660886c5e0466e232d182009cdcc"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\Stock.js": {
+    "mtime": 1772975259.2683463,
+    "ast_hash": "efddc0e03a00e02e4b4b10fb96c86812",
+    "semantic_hash": "efddc0e03a00e02e4b4b10fb96c86812"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\models\\User.js": {
+    "mtime": 1772975245.9913347,
+    "ast_hash": "19a8bd3e0de8910543c71a415c97450c",
+    "semantic_hash": "19a8bd3e0de8910543c71a415c97450c"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\auth.js": {
+    "mtime": 1779306988.9941316,
+    "ast_hash": "f9046460ccc10ec6d3144fbc2e79646b",
+    "semantic_hash": "f9046460ccc10ec6d3144fbc2e79646b"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\cas.js": {
+    "mtime": 1779303504.144946,
+    "ast_hash": "6ab43ef1ef78125f61a88f5389aa9e50",
+    "semantic_hash": "6ab43ef1ef78125f61a88f5389aa9e50"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\chatbot.js": {
+    "mtime": 1775209312.7977564,
+    "ast_hash": "8a9e2bb847f177c2fe4443541e15f556",
+    "semantic_hash": "8a9e2bb847f177c2fe4443541e15f556"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\creditcards.js": {
+    "mtime": 1779307137.072851,
+    "ast_hash": "4d47853a33ed35a4a957f888c5701245",
+    "semantic_hash": "4d47853a33ed35a4a957f888c5701245"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\eod.js": {
+    "mtime": 1779305554.7390728,
+    "ast_hash": "39f5fffd0e7861d03123e532304e3f67",
+    "semantic_hash": "39f5fffd0e7861d03123e532304e3f67"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\expenses.js": {
+    "mtime": 1779307088.3210652,
+    "ast_hash": "fe3e3c9b348c4971c1211fdea9efae9e",
+    "semantic_hash": "fe3e3c9b348c4971c1211fdea9efae9e"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\ipo.js": {
+    "mtime": 1779305483.3280964,
+    "ast_hash": "b611a81fcc9856dfbed5a43d9fd2b186",
+    "semantic_hash": "b611a81fcc9856dfbed5a43d9fd2b186"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\market.js": {
+    "mtime": 1779385536.8234448,
+    "ast_hash": "9b740dd1fa42e104916e529d52447fc7",
+    "semantic_hash": "9b740dd1fa42e104916e529d52447fc7"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\mutualfunds.js": {
+    "mtime": 1779304524.8526928,
+    "ast_hash": "56210aeb4470b20042a8fb67226197be",
+    "semantic_hash": "56210aeb4470b20042a8fb67226197be"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\optimization.js": {
+    "mtime": 1776885783.1480544,
+    "ast_hash": "ef26047d5a70b2151dab75bf3f2ad380",
+    "semantic_hash": "ef26047d5a70b2151dab75bf3f2ad380"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\portfolio.js": {
+    "mtime": 1779385583.617092,
+    "ast_hash": "82556dc1525aa4ec46f8259dd062c5c3",
+    "semantic_hash": "82556dc1525aa4ec46f8259dd062c5c3"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\stocks.js": {
+    "mtime": 1776107585.1506221,
+    "ast_hash": "3943a160118e7f75e84768df1441862e",
+    "semantic_hash": "3943a160118e7f75e84768df1441862e"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\trading.js": {
+    "mtime": 1779479371.7762058,
+    "ast_hash": "36fa46c606dd3de4954b962fbebb9615",
+    "semantic_hash": "36fa46c606dd3de4954b962fbebb9615"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\routes\\upstox.js": {
+    "mtime": 1779385567.4427826,
+    "ast_hash": "f485ff0444b0fd971e676318a3b80f96",
+    "semantic_hash": "f485ff0444b0fd971e676318a3b80f96"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\services\\marketDataService.js": {
+    "mtime": 1779479608.426726,
+    "ast_hash": "55a3cb7ddfe24ba296666a0221cb4cd8",
+    "semantic_hash": "55a3cb7ddfe24ba296666a0221cb4cd8"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\services\\stockService.js": {
+    "mtime": 1779305517.470073,
+    "ast_hash": "ea40a53c341929b366956292ee44de9c",
+    "semantic_hash": "ea40a53c341929b366956292ee44de9c"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\server\\services\\upstoxService.js": {
+    "mtime": 1779385524.7463267,
+    "ast_hash": "f9e0d8dd1bb98d23a5fd66e06e5e0479",
+    "semantic_hash": "f9e0d8dd1bb98d23a5fd66e06e5e0479"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\README.md": {
+    "mtime": 1775156632.392613,
+    "ast_hash": "0a5cfe04a5b7e847d708695424e953a0",
+    "semantic_hash": "0a5cfe04a5b7e847d708695424e953a0"
+  },
+  "D:\\Laptop backup\\DISK E\\project\\stock\\client\\public\\index.html": {
+    "mtime": 1772975815.834356,
+    "ast_hash": "8572b127122457f837d67bd81c12a390",
+    "semantic_hash": "8572b127122457f837d67bd81c12a390"
+  }
+}
