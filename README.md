@@ -357,8 +357,9 @@ Create a `.env` file in the root directory:
 PORT=5000
 NODE_ENV=development
 
-# Database (optional — app runs in demo mode without it)
-MONGODB_URI=mongodb://127.0.0.1:27017/financehub
+# Database (Supabase — required)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # Authentication (REQUIRED)
 JWT_SECRET=your_super_secret_key_change_this_in_production
@@ -476,19 +477,19 @@ const io = socketIo(server, {
 });
 ```
 
-### Enable MongoDB (Production)
+### Enable Supabase (Production)
 
-1. Create free cluster at [MongoDB Atlas](https://cloud.mongodb.com)
-2. Get connection string: `mongodb+srv://user:pass@cluster.mongodb.net/financehub`
-3. Add to Railway env: `MONGODB_URI=<your-atlas-uri>`
-4. Uncomment the `mongoose.connect()` block in `server/index.js`
+1. Create a project at [Supabase](https://supabase.com)
+2. Run the SQL in `supabase_migration.sql` via the Supabase SQL editor
+3. Copy the project URL and service-role key from Settings → API
+4. Add to Railway env: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 
 ---
 
 ## Roadmap
 
 ### v1.1
-- [ ] Enable MongoDB persistence
+- [ ] Add Fyers broker integration (alternative to Upstox)
 - [ ] Email alerts for credit card due dates
 - [ ] Export expenses to CSV
 - [ ] Import bank/card statements via CSV
