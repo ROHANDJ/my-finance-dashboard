@@ -153,99 +153,21 @@ const IPO: React.FC = () => {
     }
   };
 
-  const mockIPOs: IPO[] = [
-    {
-      symbol: 'TECHIPO',
-      companyName: 'Tech Innovators Ltd',
-      exchange: 'NSE',
-      country: 'IN',
-      currency: 'INR',
-      status: 'upcoming',
-      timeline: {
-        openDate: '2024-02-15',
-        closeDate: '2024-02-20',
-        listingDate: '2024-02-28'
-      },
-      offering: {
-        totalShares: 10000000,
-        priceRange: { min: 850, max: 900 },
-        totalAmount: 8750000000
-      },
-      analysis: {
-        recommendation: 'subscribe',
-        rating: 4,
-        pros: ['Strong growth potential', 'Experienced management', 'Growing market'],
-        cons: ['High valuation', 'Competitive sector']
-      }
-    },
-    {
-      symbol: 'HEALTHIPO',
-      companyName: 'Healthcare Solutions Inc',
-      exchange: 'NSE',
-      country: 'IN',
-      currency: 'INR',
-      status: 'open',
-      timeline: {
-        openDate: '2024-01-20',
-        closeDate: '2024-01-25',
-        listingDate: '2024-02-02'
-      },
-      offering: {
-        totalShares: 5000000,
-        priceRange: { min: 1200, max: 1250 },
-        totalAmount: 6125000000
-      },
-      subscription: {
-        retail: { percentage: 125 },
-        total: { percentage: 145 }
-      },
-      analysis: {
-        recommendation: 'subscribe',
-        rating: 4,
-        pros: ['Booming healthcare sector', 'Strong financials'],
-        cons: ['Rich valuation']
-      }
-    },
-    {
-      symbol: 'FINTECHIPO',
-      companyName: 'Fintech Solutions Ltd',
-      exchange: 'NSE',
-      country: 'IN',
-      currency: 'INR',
-      status: 'listed',
-      timeline: {
-        listingDate: '2024-01-10'
-      },
-      offering: {
-        totalShares: 6666667,
-        finalPrice: 750,
-        totalAmount: 5000000000
-      },
-      listing: {
-        listingPrice: 825,
-        listingGain: 75,
-        listingGainPercentage: 10,
-        currentPrice: 890
-      },
-      analysis: {
-        recommendation: 'neutral',
-        rating: 3,
-        pros: ['First-day listing gains'],
-        cons: ['Volatile performance']
-      }
-    }
-  ];
+  const displayIPOs       = ipos;
+  const displayUpcoming   = upcomingIPOs;
+  const displayOpen       = openIPOs;
+  const displayListed     = listedIPOs;
 
-  const displayIPOs = ipos.length > 0 ? ipos : mockIPOs;
-  const displayUpcoming = upcomingIPOs.length > 0 ? upcomingIPOs : mockIPOs.filter(ipo => ipo.status === 'upcoming');
-  const displayOpen = openIPOs.length > 0 ? openIPOs : mockIPOs.filter(ipo => ipo.status === 'open');
-  const displayListed = listedIPOs.length > 0 ? listedIPOs : mockIPOs.filter(ipo => ipo.status === 'listed');
-
-  const mockSubscriptionData = [
-    { name: 'Retail', value: 35, color: '#1976d2' },
-    { name: 'NII', value: 25, color: '#388e3c' },
-    { name: 'QIB', value: 40, color: '#f57c00' },
-  ];
+  // Build subscription pie from currently-selected IPO's subscription data
+  const subscriptionData = (() => {
+    const ipo = displayOpen[0] || displayIPOs.find(i => i.subscription);
+    if (!ipo?.subscription) return [];
+    return [
+      { name: 'Retail', value: ipo.subscription.retail?.percentage || 0, color: '#6366f1' },
+      { name: 'NII',    value: (ipo.subscription as any).nii?.percentage || 0, color: '#06b6d4' },
+      { name: 'QIB',    value: (ipo.subscription as any).qib?.percentage || 0, color: '#10b981' },
+    ].filter(x => x.value > 0);
+  })();
 
   return (
     <Box>
@@ -503,7 +425,7 @@ const IPO: React.FC = () => {
                       <ResponsiveContainer width="100%" height={100}>
                         <PieChart>
                           <Pie
-                            data={mockSubscriptionData}
+                            data={subscriptionData}
                             cx="50%"
                             cy="50%"
                             innerRadius={25}
@@ -511,7 +433,7 @@ const IPO: React.FC = () => {
                             fill="#8884d8"
                             dataKey="value"
                           >
-                            {mockSubscriptionData.map((entry, index) => (
+                            {subscriptionData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>

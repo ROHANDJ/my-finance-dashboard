@@ -100,22 +100,32 @@ const Portfolio: React.FC = () => {
     }).format(amount);
   };
 
-  const mockAllocationData = [
-    { name: 'Technology', value: 35, color: '#1976d2' },
-    { name: 'Healthcare', value: 25, color: '#388e3c' },
-    { name: 'Finance', value: 20, color: '#f57c00' },
-    { name: 'Energy', value: 15, color: '#d32f2f' },
-    { name: 'Others', value: 5, color: '#7b1fa2' },
-  ];
+  const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#ec4899'];
 
-  const mockPerformanceData = [
-    { date: 'Jan', value: 45000 },
-    { date: 'Feb', value: 48000 },
-    { date: 'Mar', value: 46500 },
-    { date: 'Apr', value: 52000 },
-    { date: 'May', value: 58000 },
-    { date: 'Jun', value: 62000 },
-  ];
+  const allocationData = selectedPortfolio
+    ? (() => {
+        const total = selectedPortfolio.holdings.reduce(
+          (s, h) => s + h.quantity * (h.currentPrice || h.averagePrice), 0,
+        );
+        return selectedPortfolio.holdings
+          .map((h, i) => ({
+            name: h.symbol,
+            value: total > 0
+              ? Math.round((h.quantity * (h.currentPrice || h.averagePrice) / total) * 100)
+              : 0,
+            color: COLORS[i % COLORS.length],
+          }))
+          .filter(a => a.value > 0)
+          .slice(0, 7);
+      })()
+    : [];
+
+  const performanceData = selectedPortfolio
+    ? [
+        { date: 'Invested', value: selectedPortfolio.performance.totalInvested },
+        { date: 'Current',  value: selectedPortfolio.performance.currentValue },
+      ]
+    : [];
 
   if (isLoading) {
     return (
@@ -231,7 +241,7 @@ const Portfolio: React.FC = () => {
                   Performance
                 </Typography>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={mockPerformanceData}>
+                  <LineChart data={performanceData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -257,14 +267,14 @@ const Portfolio: React.FC = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={mockAllocationData}
+                      data={allocationData}
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {mockAllocationData.map((entry, index) => (
+                      {allocationData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -272,7 +282,7 @@ const Portfolio: React.FC = () => {
                   </PieChart>
                 </ResponsiveContainer>
                 <Box display="flex" flexWrap="wrap" gap={1} mt={2}>
-                  {mockAllocationData.map((item) => (
+                  {allocationData.map((item) => (
                     <Chip
                       key={item.name}
                       label={`${item.name}: ${item.value}%`}

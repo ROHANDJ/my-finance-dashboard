@@ -86,15 +86,16 @@ const Dashboard: React.FC = () => {
 
       setUpcomingIPOs(ipoResponse.data.ipos || []);
 
-      const mockChartData = [
-        { date: 'Jan', value: 45000 },
-        { date: 'Feb', value: 48000 },
-        { date: 'Mar', value: 46500 },
-        { date: 'Apr', value: 52000 },
-        { date: 'May', value: 58000 },
-        { date: 'Jun', value: 62000 },
-      ];
-      setChartData(mockChartData);
+      // Build chart from real portfolio snapshot (invested vs current)
+      if (portfolioResponse.data.portfolios.length > 0) {
+        const p = portfolioResponse.data.portfolios[0];
+        setChartData([
+          { date: 'Invested', value: p.performance.totalInvested },
+          { date: 'Current',  value: p.performance.currentValue },
+        ]);
+      } else {
+        setChartData([]);
+      }
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

@@ -121,15 +121,7 @@ const Stocks: React.FC = () => {
     return value.toString();
   };
 
-  const mockStocks: Stock[] = [
-    { symbol: 'RELIANCE', name: 'Reliance Industries', currentPrice: 2850, change: 25, changePercent: 0.88, marketCap: 1900000000000, volume: 15000000, sector: 'Energy', country: 'IN' },
-    { symbol: 'TCS', name: 'Tata Consultancy Services', currentPrice: 3450, change: -15, changePercent: -0.43, marketCap: 1250000000000, volume: 8000000, sector: 'Technology', country: 'IN' },
-    { symbol: 'HDFCBANK', name: 'HDFC Bank', currentPrice: 1650, change: 20, changePercent: 1.22, marketCap: 980000000000, volume: 12000000, sector: 'Finance', country: 'IN' },
-    { symbol: 'INFY', name: 'Infosys', currentPrice: 1450, change: 10, changePercent: 0.69, marketCap: 620000000000, volume: 9000000, sector: 'Technology', country: 'IN' },
-    { symbol: 'HINDUNILVR', name: 'Hindustan Unilever', currentPrice: 2750, change: -10, changePercent: -0.36, marketCap: 590000000000, volume: 2000000, sector: 'Consumer Goods', country: 'IN' },
-  ];
-
-  const displayStocks = stocks.length > 0 ? stocks : mockStocks;
+  const displayStocks = stocks;
 
   return (
     <Box>

@@ -147,52 +147,11 @@ const MutualFunds: React.FC = () => {
     }
   };
 
-  const mockFunds: MutualFund[] = [
-    {
-      schemeCode: '119531',
-      schemeName: 'Axis Bluechip Fund',
-      amc: 'Axis Mutual Fund',
-      category: 'Large Cap',
-      nav: 45.23,
-      date: '2024-01-08',
-      returns: { '1Y': 12.5, '3Y': 18.2, '5Y': 15.8 },
-      risk: { standardDeviation: 14.5, sharpeRatio: 1.2, maxDrawdown: -8.3 },
-      rating: { morningstar: 4, valueResearch: 4, crisil: 5 }
-    },
-    {
-      schemeCode: '120531',
-      schemeName: 'HDFC Mid-Cap Opportunities',
-      amc: 'HDFC Mutual Fund',
-      category: 'Mid Cap',
-      nav: 125.67,
-      date: '2024-01-08',
-      returns: { '1Y': 18.9, '3Y': 22.1, '5Y': 19.5 },
-      risk: { standardDeviation: 18.2, sharpeRatio: 1.1, maxDrawdown: -12.1 },
-      rating: { morningstar: 5, valueResearch: 5, crisil: 4 }
-    },
-    {
-      schemeCode: '118347',
-      schemeName: 'Mirae Asset Large Cap Fund',
-      amc: 'Mirae Asset Mutual Fund',
-      category: 'Large Cap',
-      nav: 89.45,
-      date: '2024-01-08',
-      returns: { '1Y': 15.2, '3Y': 16.8, '5Y': 14.2 },
-      risk: { standardDeviation: 12.8, sharpeRatio: 1.3, maxDrawdown: -7.5 },
-      rating: { morningstar: 4, valueResearch: 4, crisil: 5 }
-    },
-  ];
-
-  const displayFunds = funds.length > 0 ? funds : mockFunds;
-
-  const mockChartData = [
-    { date: 'Jan', nav: 40 },
-    { date: 'Feb', nav: 41.5 },
-    { date: 'Mar', nav: 42.3 },
-    { date: 'Apr', nav: 43.8 },
-    { date: 'May', nav: 44.2 },
-    { date: 'Jun', nav: 45.23 },
-  ];
+  const displayFunds = funds;
+  const navChartData = displayFunds.slice(0, 6).map(f => ({
+    date: f.schemeName.slice(0, 12),
+    nav: f.nav,
+  }));
 
   return (
     <Box>
@@ -433,7 +392,7 @@ const MutualFunds: React.FC = () => {
                   Performance
                 </Typography>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={mockChartData}>
+                  <LineChart data={navChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
