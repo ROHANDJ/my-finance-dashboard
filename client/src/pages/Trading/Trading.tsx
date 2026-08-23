@@ -96,7 +96,7 @@ const Trading: React.FC = () => {
   const [funds, setFunds]         = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tabValue, setTabValue]   = useState(0);
-  const [needsUpstox, setNeedsUpstox] = useState(false);
+  const [needsDhan, setNeedsDhan] = useState(false);
 
   const [orderForm, setOrderForm] = useState({
     symbol: '',
@@ -113,7 +113,7 @@ const Trading: React.FC = () => {
 
   const fetchAll = async () => {
     setIsLoading(true);
-    setNeedsUpstox(false);
+    setNeedsDhan(false);
     try {
       const [ordersRes, positionsRes, holdingsRes, fundsRes] = await Promise.allSettled([
         axios.get('/api/trading/orders'),
@@ -126,14 +126,14 @@ const Trading: React.FC = () => {
       const anyNeedsAuth = [ordersRes, positionsRes, holdingsRes, fundsRes].some(r =>
         r.status === 'rejected' && (r.reason?.response?.data?.needsAuth || r.reason?.response?.status === 401)
       );
-      if (anyNeedsAuth) { setNeedsUpstox(true); return; }
+      if (anyNeedsAuth) { setNeedsDhan(true); return; }
 
       if (ordersRes.status === 'fulfilled')    setOrders(ordersRes.value.data.orders || []);
       if (positionsRes.status === 'fulfilled') setPositions(positionsRes.value.data.positions || []);
       if (holdingsRes.status === 'fulfilled')  setHoldings(holdingsRes.value.data.holdings || []);
       if (fundsRes.status === 'fulfilled')     setFunds(fundsRes.value.data);
     } catch {
-      setNeedsUpstox(true);
+      setNeedsDhan(true);
     } finally {
       setIsLoading(false);
     }
@@ -177,23 +177,23 @@ const Trading: React.FC = () => {
   const totalPnl = positions.reduce((s, p) => s + (p.pnl || 0), 0);
 
   // ── Not connected banner ────────────────────────────────────────────────
-  if (!isLoading && needsUpstox) {
+  if (!isLoading && needsDhan) {
     return (
       <Box>
         <Typography variant="h4" fontWeight={600} mb={3}>Trading</Typography>
         <Card sx={{ textAlign: 'center', py: 8 }}>
           <CardContent>
             <LinkOff sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>Upstox Not Connected</Typography>
+            <Typography variant="h6" gutterBottom>Dhan Not Connected</Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
-              Connect your Upstox account to view live orders, positions, holdings and place trades.
+              Connect your Dhan account to view live orders, positions, holdings and place trades.
             </Typography>
             <Button
               variant="contained"
               startIcon={<SwapHoriz />}
               onClick={() => navigate('/portfolio')}
             >
-              Connect Upstox on Portfolio Page
+              Connect Dhan on Portfolio Page
             </Button>
           </CardContent>
         </Card>
@@ -215,7 +215,7 @@ const Trading: React.FC = () => {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" fontWeight={600}>Trading</Typography>
         <Box display="flex" gap={2} alignItems="center">
-          <Chip label="Upstox Connected" color="success" variant="outlined" size="small" />
+          <Chip label="Dhan Connected" color="success" variant="outlined" size="small" />
           <IconButton onClick={fetchAll} color="primary"><Refresh /></IconButton>
         </Box>
       </Box>

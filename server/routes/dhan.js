@@ -1,10 +1,8 @@
 const express = require('express');
 const auth = require('../middleware/auth');
-const upstox = require('../services/upstoxService');
+const dhan = require('../services/dhanService');
 const supabase = require('../lib/supabase');
 const router = express.Router();
-
-const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 function calcPerformance(holdings = []) {
   let invested = 0, value = 0;
@@ -22,127 +20,128 @@ function calcPerformance(holdings = []) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /status — is Upstox configured + is user connected?
+// GET /status — is Dhan available + is this user connected?
 // ---------------------------------------------------------------------------
 router.get('/status', auth, (req, res) => {
   res.json({
-    configured: upstox.isConfigured(),
-    connected:  !!upstox.getToken(req.userId),
+    configured: dhan.isConfigured(),
+    connected:  !!dhan.getToken(req.userId),
   });
 });
 
 // ---------------------------------------------------------------------------
-// GET /auth-url — get OAuth login URL
+// POST /connect — user pastes their Dhan access token + client id.
+// We validate it by calling the profile endpoint before storing.
 // ---------------------------------------------------------------------------
-router.get('/auth-url', auth, (req, res) => {
-  if (!upstox.isConfigured()) {
-    return res.status(503).json({
-      message: 'Upstox API not configured. Add UPSTOX_API_KEY, UPSTOX_API_SECRET, UPSTOX_REDIRECT_URI to .env',
-    });
-  }
-  res.json({ url: upstox.getAuthUrl(req.userId) });
-});
-
-// ---------------------------------------------------------------------------
-// GET /callback — Upstox redirects here after login (no auth middleware)
-// ---------------------------------------------------------------------------
-router.get('/callback', async (req, res) => {
-  const { code, state: userId, error } = req.query;
-
-  if (error || !code) {
-    return res.redirect(`${FRONTEND}/portfolio?upstox_error=${error || 'missing_code'}`);
+router.post('/connect', auth, async (req, res) => {
+  const { accessToken, clientId } = req.body;
+  if (!accessToken || !clientId) {
+    return res.status(400).json({ message: 'accessToken and clientId are required' });
   }
 
   try {
-    const tokenData = await upstox.exchangeToken(code);
-    upstox.setToken(userId, tokenData.access_token);
-    res.redirect(`${FRONTEND}/portfolio?upstox_connected=1`);
+    const creds = { accessToken: accessToken.trim(), clientId: String(clientId).trim() };
+    const profile = await dhan.getProfile(creds);
+
+    // Dhan returns tokenValidity like "2025-01-30 03:30:00" — use it if parseable
+    let validityMs;
+    if (profile.tokenValidity) {
+      const t = Date.parse(profile.tokenValidity.replace(' ', 'T'));
+      if (!Number.isNaN(t)) validityMs = Math.max(0, t - Date.now());
+    }
+
+    dhan.setToken(req.userId, creds.accessToken, creds.clientId, validityMs);
+    res.json({ message: 'Connected to Dhan', profile });
   } catch (err) {
-    console.error('Upstox token exchange error:', err.response?.data || err.message);
-    res.redirect(`${FRONTEND}/portfolio?upstox_error=token_exchange_failed`);
+    const status = err.response?.status;
+    if (status === 401 || status === 400) {
+      return res.status(401).json({ message: 'Invalid Dhan access token or client id' });
+    }
+    console.error('Dhan connect error:', err.response?.data || err.message);
+    res.status(502).json({ message: 'Could not reach Dhan to validate the token' });
   }
 });
 
 // ---------------------------------------------------------------------------
-// GET /disconnect
+// POST /disconnect
 // ---------------------------------------------------------------------------
 router.post('/disconnect', auth, (req, res) => {
-  upstox.clearToken(req.userId);
-  res.json({ message: 'Disconnected from Upstox' });
+  dhan.clearToken(req.userId);
+  res.json({ message: 'Disconnected from Dhan' });
 });
 
 // ---------------------------------------------------------------------------
 // GET /profile
 // ---------------------------------------------------------------------------
 router.get('/profile', auth, async (req, res) => {
-  const token = upstox.getToken(req.userId);
-  if (!token) return res.status(401).json({ message: 'Not connected to Upstox', needsAuth: true });
+  const creds = dhan.getCreds(req.userId);
+  if (!creds) return res.status(401).json({ message: 'Not connected to Dhan', needsAuth: true });
 
   try {
-    const profile = await upstox.getProfile(token);
+    const profile = await dhan.getProfile(creds);
     res.json({ profile });
   } catch (err) {
     if (err.response?.status === 401) {
-      upstox.clearToken(req.userId);
-      return res.status(401).json({ message: 'Upstox session expired. Please reconnect.', needsAuth: true });
+      dhan.clearToken(req.userId);
+      return res.status(401).json({ message: 'Dhan session expired. Please reconnect.', needsAuth: true });
     }
-    res.status(500).json({ message: 'Error fetching Upstox profile' });
+    res.status(500).json({ message: 'Error fetching Dhan profile' });
   }
 });
 
 // ---------------------------------------------------------------------------
-// GET /holdings — live holdings from Upstox
+// GET /holdings
 // ---------------------------------------------------------------------------
 router.get('/holdings', auth, async (req, res) => {
-  const token = upstox.getToken(req.userId);
-  if (!token) return res.status(401).json({ message: 'Not connected to Upstox', needsAuth: true });
+  const creds = dhan.getCreds(req.userId);
+  if (!creds) return res.status(401).json({ message: 'Not connected to Dhan', needsAuth: true });
 
   try {
-    const holdings = await upstox.getHoldings(token);
-    const totalValue  = holdings.reduce((s, h) => s + h.value, 0);
-    const totalPnl    = holdings.reduce((s, h) => s + h.pnl, 0);
-    const invested    = holdings.reduce((s, h) => s + h.quantity * h.averagePrice, 0);
-    const pnlPercent  = invested > 0 ? (totalPnl / invested) * 100 : 0;
+    const holdings = await dhan.getHoldings(creds);
+    const totalValue = holdings.reduce((s, h) => s + h.value, 0);
+    const totalPnl   = holdings.reduce((s, h) => s + h.pnl, 0);
+    const invested   = holdings.reduce((s, h) => s + h.quantity * h.averagePrice, 0);
+    const pnlPercent = invested > 0 ? (totalPnl / invested) * 100 : 0;
 
     res.json({ holdings, summary: { totalValue, totalPnl, invested, pnlPercent: parseFloat(pnlPercent.toFixed(2)) } });
   } catch (err) {
     if (err.response?.status === 401) {
-      upstox.clearToken(req.userId);
-      return res.status(401).json({ message: 'Upstox session expired. Please reconnect.', needsAuth: true });
+      dhan.clearToken(req.userId);
+      return res.status(401).json({ message: 'Dhan session expired. Please reconnect.', needsAuth: true });
     }
-    console.error('Upstox holdings error:', err.message);
-    res.status(500).json({ message: 'Error fetching Upstox holdings' });
+    console.error('Dhan holdings error:', err.message);
+    res.status(500).json({ message: 'Error fetching Dhan holdings' });
   }
 });
 
 // ---------------------------------------------------------------------------
-// GET /positions — intraday positions
+// GET /positions
 // ---------------------------------------------------------------------------
 router.get('/positions', auth, async (req, res) => {
-  const token = upstox.getToken(req.userId);
-  if (!token) return res.status(401).json({ message: 'Not connected to Upstox', needsAuth: true });
+  const creds = dhan.getCreds(req.userId);
+  if (!creds) return res.status(401).json({ message: 'Not connected to Dhan', needsAuth: true });
 
   try {
-    const positions = await upstox.getPositions(token);
+    const positions = await dhan.getPositions(creds);
     res.json({ positions });
   } catch (err) {
     if (err.response?.status === 401) {
-      upstox.clearToken(req.userId);
-      return res.status(401).json({ message: 'Upstox session expired. Please reconnect.', needsAuth: true });
+      dhan.clearToken(req.userId);
+      return res.status(401).json({ message: 'Dhan session expired. Please reconnect.', needsAuth: true });
     }
     res.status(500).json({ message: 'Error fetching positions' });
   }
 });
 
 // ---------------------------------------------------------------------------
-// GET /funds — available margin / funds
+// GET /funds
 // ---------------------------------------------------------------------------
 router.get('/funds', auth, async (req, res) => {
-  const token = upstox.getToken(req.userId);
-  if (!token) return res.status(401).json({ message: 'Not connected to Upstox', needsAuth: true });
+  const creds = dhan.getCreds(req.userId);
+  if (!creds) return res.status(401).json({ message: 'Not connected to Dhan', needsAuth: true });
 
   try {
-    const funds = await upstox.getFunds(token);
+    const funds = await dhan.getFunds(creds);
     res.json({ funds });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching funds' });
@@ -150,19 +149,18 @@ router.get('/funds', auth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /sync-portfolio — import Upstox holdings into a portfolio
+// POST /sync-portfolio — import Dhan holdings into a portfolio
 // ---------------------------------------------------------------------------
 router.post('/sync-portfolio', auth, async (req, res) => {
-  const token = upstox.getToken(req.userId);
-  if (!token) return res.status(401).json({ message: 'Not connected to Upstox', needsAuth: true });
+  const creds = dhan.getCreds(req.userId);
+  if (!creds) return res.status(401).json({ message: 'Not connected to Dhan', needsAuth: true });
 
   try {
     const [holdings, positions] = await Promise.all([
-      upstox.getHoldings(token),
-      upstox.getPositions(token).catch(() => []),
+      dhan.getHoldings(creds),
+      dhan.getPositions(creds).catch(() => []),
     ]);
 
-    // Merge long-term holdings and intraday positions
     const allRaw = [...holdings];
     positions.filter(p => p.quantity > 0).forEach(p => {
       if (!allRaw.find(h => h.symbol === p.symbol)) allRaw.push(p);
@@ -184,7 +182,6 @@ router.post('/sync-portfolio', auth, async (req, res) => {
     }));
 
     const performance = calcPerformance(mappedHoldings);
-
     let portfolioId = req.body.portfolioId;
 
     if (portfolioId) {
@@ -199,7 +196,7 @@ router.post('/sync-portfolio', auth, async (req, res) => {
         .from('portfolios')
         .insert({
           user_id:      req.userId,
-          name:         'Upstox Portfolio',
+          name:         'Dhan Portfolio',
           account_type: 'indian',
           holdings:     mappedHoldings,
           transactions: [],
@@ -212,18 +209,18 @@ router.post('/sync-portfolio', auth, async (req, res) => {
     }
 
     res.json({
-      message:       `Synced ${mappedHoldings.length} holdings from Upstox`,
+      message:       `Synced ${mappedHoldings.length} holdings from Dhan`,
       portfolioId,
       holdingsCount: mappedHoldings.length,
       performance,
     });
   } catch (err) {
     if (err.response?.status === 401) {
-      upstox.clearToken(req.userId);
-      return res.status(401).json({ message: 'Upstox session expired. Please reconnect.', needsAuth: true });
+      dhan.clearToken(req.userId);
+      return res.status(401).json({ message: 'Dhan session expired. Please reconnect.', needsAuth: true });
     }
-    console.error('Upstox sync error:', err.message);
-    res.status(500).json({ message: 'Error syncing portfolio from Upstox' });
+    console.error('Dhan sync error:', err.message);
+    res.status(500).json({ message: 'Error syncing portfolio from Dhan' });
   }
 });
 

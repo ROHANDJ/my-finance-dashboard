@@ -38,6 +38,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
+  devLogin: () => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   updateProfile: (userData: Partial<User>) => Promise<void>;
@@ -172,6 +173,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const devLogin = async () => {
+    dispatch({ type: 'LOGIN_START' });
+    try {
+      const response = await axios.post('/api/auth/dev-login');
+      const { token, user } = response.data;
+
+      localStorage.setItem('token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
+      toast.success('Dev login successful!');
+    } catch (error: any) {
+      dispatch({ type: 'LOGIN_FAILURE' });
+      const message = error.response?.data?.message || 'Dev login failed';
+      toast.error(message);
+      throw error;
+    }
+  };
+
   const register = async (userData: RegisterData) => {
     dispatch({ type: 'LOGIN_START' });
     try {
@@ -227,6 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     ...state,
     login,
+    devLogin,
     register,
     logout,
     updateProfile,

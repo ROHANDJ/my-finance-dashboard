@@ -123,6 +123,64 @@ router.post('/login', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /dev-login — auto-provision + log in a fixed dev account.
+// Disabled in production so this can never be exploited as a backdoor.
+// ---------------------------------------------------------------------------
+router.post('/dev-login', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ message: 'Not found' });
+  }
+
+  try {
+    const email = 'dev@dev.com';
+    const password = 'dev123';
+
+    let { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (!user) {
+      const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const { data: created, error } = await supabase
+        .from('users')
+        .insert({
+          username: 'dev',
+          email,
+          password_hash,
+          first_name: 'Dev',
+          last_name: 'User',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      user = created;
+    }
+
+    if (!user.is_active) {
+      return res.status(401).json({ message: 'Account is deactivated' });
+    }
+
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
+
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET || 'demo_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.json({ message: 'Dev login successful', token, user: userToJSON(user) });
+  } catch (error) {
+    console.error('Dev login error:', error);
+    res.status(500).json({ message: 'Server error during dev login' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /profile
 // ---------------------------------------------------------------------------
 router.get('/profile', auth, async (req, res) => {

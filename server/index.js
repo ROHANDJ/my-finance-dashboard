@@ -62,7 +62,7 @@ safeRoute('/api/eod',         './routes/eod');
 safeRoute('/api/optimization','./routes/optimization');
 safeRoute('/api/cas',         './routes/cas');
 safeRoute('/api/market',      './routes/market');
-safeRoute('/api/upstox',      './routes/upstox');
+safeRoute('/api/dhan',        './routes/dhan');
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);

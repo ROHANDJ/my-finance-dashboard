@@ -3,7 +3,7 @@ import {
   Box, Button, Typography, CircularProgress, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableHead, TableBody, TableRow, TableCell,
-  Alert, IconButton, Tooltip,
+  Alert, IconButton, Tooltip, TextField, Link,
 } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
@@ -31,68 +31,71 @@ interface Props {
   onSynced?: (portfolioId: string) => void;
 }
 
-const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
+const DhanConnect: React.FC<Props> = ({ onSynced }) => {
   const [status, setStatus]         = useState<{ configured: boolean; connected: boolean } | null>(null);
   const [holdings, setHoldings]     = useState<Holding[]>([]);
   const [summary, setSummary]       = useState<any>(null);
   const [loading, setLoading]       = useState(false);
   const [syncing, setSyncing]       = useState(false);
   const [showHoldings, setShowHoldings] = useState(false);
+  const [showConnect, setShowConnect]   = useState(false);
+  const [accessToken, setAccessToken]   = useState('');
+  const [clientId, setClientId]         = useState('');
   const [error, setError]           = useState('');
 
   const fetchStatus = async () => {
     try {
-      const res = await axios.get('/api/upstox/status');
+      const res = await axios.get('/api/dhan/status');
       setStatus(res.data);
     } catch { setStatus({ configured: false, connected: false }); }
   };
 
-  useEffect(() => {
-    fetchStatus();
-    // Check URL params for callback result
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('upstox_connected') === '1') {
-      toast.success('Upstox connected successfully!');
-      fetchStatus();
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (params.get('upstox_error')) {
-      toast.error(`Upstox error: ${params.get('upstox_error')}`);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
+  useEffect(() => { fetchStatus(); }, []);
 
   const handleConnect = async () => {
+    if (!accessToken.trim() || !clientId.trim()) {
+      setError('Both access token and client ID are required');
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
-      const res = await axios.get('/api/upstox/auth-url');
-      window.location.href = res.data.url;
+      await axios.post('/api/dhan/connect', {
+        accessToken: accessToken.trim(),
+        clientId: clientId.trim(),
+      });
+      toast.success('Dhan connected successfully!');
+      setShowConnect(false);
+      setAccessToken('');
+      setClientId('');
+      await fetchStatus();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to get auth URL');
+      setError(err?.response?.data?.message || 'Failed to connect to Dhan');
+    } finally {
       setLoading(false);
     }
   };
 
   const handleDisconnect = async () => {
-    await axios.post('/api/upstox/disconnect');
+    await axios.post('/api/dhan/disconnect');
     setStatus(s => s ? { ...s, connected: false } : s);
     setHoldings([]);
     setSummary(null);
-    toast.success('Disconnected from Upstox');
+    toast.success('Disconnected from Dhan');
   };
 
   const handleFetchHoldings = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get('/api/upstox/holdings');
+      const res = await axios.get('/api/dhan/holdings');
       setHoldings(res.data.holdings || []);
       setSummary(res.data.summary);
       setShowHoldings(true);
     } catch (err: any) {
       if (err?.response?.data?.needsAuth) {
         setStatus(s => s ? { ...s, connected: false } : s);
-        setError('Session expired. Please reconnect to Upstox.');
+        setError('Session expired. Please reconnect to Dhan.');
       } else {
         setError(err?.response?.data?.message || 'Failed to fetch holdings');
       }
@@ -104,7 +107,7 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const res = await axios.post('/api/upstox/sync-portfolio');
+      const res = await axios.post('/api/dhan/sync-portfolio');
       toast.success(`Synced ${res.data.holdingsCount} holdings to portfolio!`);
       setShowHoldings(false);
       onSynced?.(res.data.portfolioId);
@@ -126,15 +129,6 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
 
   return (
     <Box>
-      {!status.configured && (
-        <Alert
-          severity="info"
-          sx={{ mb: 2, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#e2e8f0' }}
-        >
-          Add <strong>UPSTOX_API_KEY</strong>, <strong>UPSTOX_API_SECRET</strong>, and <strong>UPSTOX_REDIRECT_URI</strong> to your <code>.env</code> file to enable Upstox integration.
-        </Alert>
-      )}
-
       {error && (
         <Alert severity="error" sx={{ mb: 2, background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.2)' }} onClose={() => setError('')}>
           {error}
@@ -168,10 +162,10 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
             <AccountBalanceIcon sx={{ color: status.connected ? '#10b981' : '#6366f1', fontSize: '1.1rem' }} />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#e2e8f0' }}>Upstox</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#e2e8f0' }}>Dhan</Typography>
             <Chip
               size="small"
-              label={status.connected ? 'Connected' : status.configured ? 'Not connected' : 'Not configured'}
+              label={status.connected ? 'Connected' : 'Not connected'}
               sx={{
                 height: 18, fontSize: '0.65rem', fontWeight: 700,
                 background: status.connected ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.1)',
@@ -227,7 +221,7 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
                   Sync
                 </Button>
               </Tooltip>
-              <Tooltip title="Disconnect Upstox">
+              <Tooltip title="Disconnect Dhan">
                 <IconButton size="small" onClick={handleDisconnect} sx={{ color: '#f43f5e' }}>
                   <LinkOffIcon fontSize="small" />
                 </IconButton>
@@ -237,16 +231,78 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
             <Button
               size="small"
               variant="contained"
-              startIcon={loading ? <CircularProgress size={12} color="inherit" /> : <LinkIcon />}
-              onClick={handleConnect}
-              disabled={loading || !status.configured}
+              startIcon={<LinkIcon />}
+              onClick={() => { setError(''); setShowConnect(true); }}
               sx={{ fontSize: '0.75rem' }}
             >
-              Connect Upstox
+              Connect Dhan
             </Button>
           )}
         </Box>
       </Box>
+
+      {/* Connect dialog — paste access token + client id */}
+      <Dialog
+        open={showConnect}
+        onClose={() => setShowConnect(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'rgba(9, 15, 35, 0.98)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            backdropFilter: 'blur(20px)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid rgba(99,102,241,0.1)', pb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AccountBalanceIcon sx={{ color: '#6366f1' }} />
+            <Typography fontWeight={700}>Connect Dhan</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2.5 }}>
+          <Alert
+            severity="info"
+            sx={{ mb: 2.5, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#e2e8f0' }}
+          >
+            Generate an access token from{' '}
+            <Link href="https://web.dhan.co/" target="_blank" rel="noopener" sx={{ color: '#06b6d4' }}>
+              Dhan Web
+            </Link>{' '}
+            → My Profile → DhanHQ Trading APIs, then paste it below with your Client ID.
+          </Alert>
+          {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+          <TextField
+            fullWidth
+            label="Dhan Client ID"
+            value={clientId}
+            onChange={e => setClientId(e.target.value)}
+            sx={{ mb: 2 }}
+            placeholder="e.g. 1100123456"
+          />
+          <TextField
+            fullWidth
+            label="Access Token"
+            value={accessToken}
+            onChange={e => setAccessToken(e.target.value)}
+            multiline
+            minRows={3}
+            placeholder="Paste your Dhan access token (JWT)"
+          />
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid rgba(99,102,241,0.1)', px: 3, py: 2 }}>
+          <Button onClick={() => setShowConnect(false)} sx={{ color: '#64748b' }}>Cancel</Button>
+          <Button
+            variant="contained"
+            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <LinkIcon />}
+            onClick={handleConnect}
+            disabled={loading}
+          >
+            Connect
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Holdings dialog */}
       <Dialog
@@ -265,7 +321,7 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
         <DialogTitle sx={{ borderBottom: '1px solid rgba(99,102,241,0.1)', pb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AccountBalanceIcon sx={{ color: '#6366f1' }} />
-            <Typography fontWeight={700}>Upstox Holdings ({holdings.length})</Typography>
+            <Typography fontWeight={700}>Dhan Holdings ({holdings.length})</Typography>
           </Box>
           {summary && (
             <Box sx={{ display: 'flex', gap: 3, mt: 1 }}>
@@ -335,4 +391,4 @@ const UpstoxConnect: React.FC<Props> = ({ onSynced }) => {
   );
 };
 
-export default UpstoxConnect;
+export default DhanConnect;
