@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Drawer,
@@ -35,11 +35,16 @@ import {
   Summarize,
   AutoGraph,
   UploadFile,
+  Explore,
+  LightMode,
+  DarkMode,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useColorMode } from '../../contexts/ColorModeContext';
 import Chatbot from '../Chatbot/Chatbot';
 import MarketTicker from '../MarketTicker/MarketTicker';
+import OnboardingTour from '../Tour/OnboardingTour';
 
 const drawerWidth = 264;
 
@@ -65,9 +70,9 @@ const groupLabels: Record<string, string> = {
 
 // accent colors per group
 const groupAccent: Record<string, string> = {
-  main:    '#06b6d4',
-  invest:  '#6366f1',
-  finance: '#10b981',
+  main:    'var(--fh-info)',
+  invest:  'var(--fh-indigo)',
+  finance: 'var(--fh-up)',
 };
 
 interface LayoutProps { children: React.ReactNode; }
@@ -81,7 +86,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, completeOnboarding } = useAuth();
+  const [tourOpen, setTourOpen] = useState(false);
+  const { mode: colorMode, toggle: toggleColorMode } = useColorMode();
+
+  // First login: show the tour exactly once per account. It's marked as seen
+  // the moment it appears (not when closed), so logging out, refreshing or
+  // navigating away mid-tour doesn't bring it back next time. The flag is
+  // saved to the profile (all devices) and localStorage (in case that fails).
+  const autoTourShownRef = useRef(false);
+  useEffect(() => {
+    if (!user || user.preferences?.onboardingCompleted || autoTourShownRef.current) return;
+    let seenLocally = false;
+    try { seenLocally = localStorage.getItem(`tour_done_${user.id}`) === '1'; } catch {}
+    if (seenLocally) return;
+    const t = setTimeout(() => {
+      autoTourShownRef.current = true;
+      setTourOpen(true);
+      try { localStorage.setItem(`tour_done_${user.id}`, '1'); } catch {}
+      completeOnboarding();
+    }, 700);
+    return () => clearTimeout(t);
+  }, [user, completeOnboarding]);
+
+  const handleTourClose = () => setTourOpen(false);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
@@ -100,7 +128,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const items  = menuItems.filter(i => i.group === group);
     const accent = groupAccent[group];
     return (
-      <Box key={group} sx={{ mb: 1 }}>
+      <Box key={group} data-tour={`nav-${group}`} sx={{ mb: 1 }}>
         <Typography
           variant="caption"
           sx={{
@@ -134,19 +162,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 position: 'relative',
                 overflow: 'hidden',
                 background: active
-                  ? `linear-gradient(135deg, ${accent}22 0%, ${accent}11 100%)`
+                  ? `linear-gradient(135deg, color-mix(in srgb, ${accent} 13%, transparent) 0%, color-mix(in srgb, ${accent} 7%, transparent) 100%)`
                   : 'transparent',
                 border: active
-                  ? `1px solid ${accent}44`
+                  ? `1px solid color-mix(in srgb, ${accent} 27%, transparent)`
                   : '1px solid transparent',
-                color: active ? accent : 'rgba(226, 232, 240, 0.65)',
+                color: active ? accent : 'var(--fh-text-3)',
                 transition: 'all 0.2s ease',
                 '&:hover': {
                   background: active
-                    ? `linear-gradient(135deg, ${accent}28 0%, ${accent}14 100%)`
+                    ? `linear-gradient(135deg, color-mix(in srgb, ${accent} 16%, transparent) 0%, color-mix(in srgb, ${accent} 8%, transparent) 100%)`
                     : 'rgba(99, 102, 241, 0.06)',
-                  color: active ? accent : '#e2e8f0',
-                  border: `1px solid ${active ? accent + '60' : 'rgba(99,102,241,0.2)'}`,
+                  color: active ? accent : 'var(--fh-text)',
+                  border: `1px solid ${active ? `color-mix(in srgb, ${accent} 38%, transparent)` : 'rgba(99,102,241,0.2)'}`,
                 },
                 '&::before': active ? {
                   content: '""',
@@ -178,7 +206,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   fontSize: '0.85rem',
                   fontWeight: active ? 700 : 500,
                   letterSpacing: active ? '0.01em' : 0,
-                  textShadow: active ? `0 0 12px ${accent}66` : 'none',
+                  textShadow: active ? `0 0 12px color-mix(in srgb, ${accent} 40%, transparent)` : 'none',
                 }}
               >
                 {item.text}
@@ -191,7 +219,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   };
 
-  const currentPageName = menuItems.find(i => i.path === location.pathname)?.text || 'Dashboard';
+  const extraTitles: Record<string, string> = { '/profile': 'Profile', '/settings': 'Settings' };
+  const currentPageName = menuItems.find(i => i.path === location.pathname)?.text || extraTitles[location.pathname] || 'Dashboard';
 
   const drawer = (
     <Box
@@ -199,7 +228,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'linear-gradient(180deg, #070c1f 0%, #0b1128 60%, #07101e 100%)',
+        background: 'var(--fh-sidebar)',
         borderRight: '1px solid rgba(99, 102, 241, 0.12)',
       }}
     >
@@ -219,7 +248,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             width: 36,
             height: 36,
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+            background: 'linear-gradient(135deg, #6366f1 0%, var(--fh-info) 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -234,7 +263,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             sx={{
               fontWeight: 800,
               fontSize: '1rem',
-              background: 'linear-gradient(135deg, #818cf8, #06b6d4)',
+              background: 'linear-gradient(135deg, var(--fh-indigo), var(--fh-info))',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -245,7 +274,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.2 }}>
             <Box className="pulse-dot" sx={{ width: 6, height: 6 }} />
-            <Typography sx={{ fontSize: '0.62rem', color: '#10b981', fontWeight: 600 }}>
+            <Typography sx={{ fontSize: '0.62rem', color: 'var(--fh-up)', fontWeight: 600 }}>
               LIVE
             </Typography>
           </Box>
@@ -263,7 +292,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           px: 2,
           py: 2,
           borderTop: '1px solid rgba(99, 102, 241, 0.1)',
-          background: 'rgba(6, 8, 24, 0.4)',
+          background: 'var(--fh-surface-2)',
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
@@ -285,20 +314,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {user?.firstName?.charAt(0) || 'U'}
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+          <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--fh-text)' }}>
             {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'User'}
           </Typography>
-          <Typography sx={{ fontSize: '0.68rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Typography sx={{ fontSize: '0.68rem', color: 'var(--fh-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email || ''}
           </Typography>
         </Box>
-        <Settings sx={{ fontSize: '0.9rem', color: '#475569' }} />
+        <Settings sx={{ fontSize: '0.9rem', color: 'var(--fh-muted-2)' }} />
       </Box>
     </Box>
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', width: '100%', minHeight: '100vh' }}>
       {/* AppBar */}
       <AppBar
         position="fixed"
@@ -306,7 +335,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          background: 'rgba(6, 8, 24, 0.85)',
+          background: 'var(--fh-appbar)',
           backdropFilter: 'blur(20px)',
           borderBottom: '1px solid rgba(99, 102, 241, 0.1)',
           boxShadow: 'none',
@@ -316,7 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <IconButton
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' }, color: '#94a3b8' }}
+            sx={{ mr: 2, display: { md: 'none' }, color: 'var(--fh-text-3)' }}
           >
             <MenuIcon />
           </IconButton>
@@ -324,24 +353,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 110 }}>
             <Typography
               variant="h6"
-              sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#e2e8f0', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}
+              sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--fh-text)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}
             >
               {currentPageName}
             </Typography>
           </Box>
 
           {/* Live market ticker — hidden on small screens */}
-          <Box sx={{ display: { xs: 'none', lg: 'flex' }, flex: 1, overflow: 'hidden' }}>
+          <Box data-tour="market-ticker" sx={{ display: { xs: 'none', lg: 'flex' }, flex: 1, overflow: 'hidden' }}>
             <MarketTicker />
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', pl: 1 }}>
+            <Tooltip title={colorMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton
+                onClick={toggleColorMode}
+                aria-label={colorMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                sx={{ color: 'var(--fh-muted)', '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}
+              >
+                {colorMode === 'dark' ? <LightMode sx={{ fontSize: '1.2rem' }} /> : <DarkMode sx={{ fontSize: '1.2rem' }} />}
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Notifications">
-              <IconButton sx={{ color: '#64748b', '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}>
+              <IconButton sx={{ color: 'var(--fh-muted)', '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}>
                 <Badge
                   badgeContent={0}
                   color="error"
-                  sx={{ '& .MuiBadge-badge': { background: '#f43f5e', fontSize: '0.6rem', minWidth: 16, height: 16 } }}
+                  sx={{ '& .MuiBadge-badge': { background: 'var(--fh-down)', fontSize: '0.6rem', minWidth: 16, height: 16 } }}
                 >
                   <Notifications sx={{ fontSize: '1.2rem' }} />
                 </Badge>
@@ -350,9 +389,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <Tooltip title="AI Assistant">
               <IconButton
+                data-tour="ai-assistant"
                 onClick={() => setShowChatbot(!showChatbot)}
                 sx={{
-                  color: showChatbot ? '#6366f1' : '#64748b',
+                  color: showChatbot ? '#6366f1' : 'var(--fh-muted)',
                   background: showChatbot ? 'rgba(99,102,241,0.15)' : 'transparent',
                   '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' },
                 }}
@@ -362,6 +402,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </Tooltip>
 
             <IconButton
+              data-tour="profile-menu"
+              aria-label="Account menu"
               onClick={e => setAnchorEl(e.currentTarget)}
               sx={{ ml: 0.5, p: 0.5 }}
             >
@@ -390,10 +432,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               sx: {
                 mt: 1,
                 minWidth: 180,
-                background: 'rgba(9, 15, 35, 0.98)',
+                background: 'var(--fh-dialog)',
                 border: '1px solid rgba(99, 102, 241, 0.2)',
                 backdropFilter: 'blur(20px)',
-                boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+                boxShadow: '0 16px 48px var(--fh-shadow)',
                 '& .MuiMenuItem-root': {
                   fontSize: '0.85rem',
                   py: 1,
@@ -409,12 +451,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <ListItemText>Profile</ListItemText>
             </MenuItem>
             <MenuItem onClick={() => navigate('/settings')}>
-              <ListItemIcon><Settings sx={{ fontSize: '1rem', color: '#06b6d4' }} /></ListItemIcon>
+              <ListItemIcon><Settings sx={{ fontSize: '1rem', color: 'var(--fh-info)' }} /></ListItemIcon>
               <ListItemText>Settings</ListItemText>
             </MenuItem>
+            <MenuItem onClick={() => { if (isMobile) setMobileOpen(false); setTourOpen(true); }}>
+              <ListItemIcon><Explore sx={{ fontSize: '1rem', color: '#8b5cf6' }} /></ListItemIcon>
+              <ListItemText>Take the tour</ListItemText>
+            </MenuItem>
             <Divider sx={{ borderColor: 'rgba(99,102,241,0.1)' }} />
-            <MenuItem onClick={handleLogout} sx={{ color: '#f43f5e !important' }}>
-              <ListItemIcon><Logout sx={{ fontSize: '1rem', color: '#f43f5e' }} /></ListItemIcon>
+            <MenuItem onClick={handleLogout} sx={{ color: 'var(--fh-down) !important' }}>
+              <ListItemIcon><Logout sx={{ fontSize: '1rem', color: 'var(--fh-down)' }} /></ListItemIcon>
               <ListItemText>Logout</ListItemText>
             </MenuItem>
           </Menu>
@@ -445,6 +491,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           background: 'transparent',
@@ -453,10 +500,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }}
       >
         <Toolbar sx={{ minHeight: '60px !important' }} />
-        <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 1800, mx: 'auto' }}>
           {children}
         </Box>
       </Box>
+
+      <OnboardingTour open={tourOpen} onClose={handleTourClose} />
 
       {showChatbot && (
         <Chatbot open={showChatbot} onClose={() => setShowChatbot(false)} />

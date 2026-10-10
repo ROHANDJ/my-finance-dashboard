@@ -23,8 +23,9 @@ import {
   Fab,
   InputAdornment,
   Alert,
-  Skeleton,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Add,
@@ -59,6 +60,12 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import {
+  StatCardsSkeleton,
+  ListSkeleton,
+  ChartSkeleton,
+  CardGridSkeleton,
+} from '../../components/Skeletons/Skeletons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,6 +155,13 @@ const CATEGORIES: Category[] = [
 
 const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Card', 'UPI', 'Net Banking'];
 
+const TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--fh-paper-solid)',
+  border: '1px solid rgba(148,163,184,0.2)',
+  borderRadius: 8,
+  color: 'var(--fh-text)',
+};
+
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -187,7 +201,7 @@ interface TabPanelProps {
 }
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 3 }}>
+  <Box role="tabpanel" hidden={value !== index} sx={{ pt: { xs: 1, md: 2 } }}>
     {value === index && children}
   </Box>
 );
@@ -196,6 +210,8 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
 
 const Expenses: React.FC = () => {
   const queryClient = useQueryClient();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // UI state
   const [activeTab, setActiveTab] = useState(0);
@@ -321,98 +337,103 @@ const Expenses: React.FC = () => {
   return (
     <Box sx={{ position: 'relative', pb: 10 }}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>
-          Expense Tracker
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            Expense Tracker
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+            Track daily spending, analyse categories and stay on budget
+          </Typography>
+        </Box>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setOpenAddDialog(true)}>
+          Add Expense
+        </Button>
       </Box>
 
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={3}>
+      {summaryQuery.isLoading ? (
+        <StatCardsSkeleton count={4} />
+      ) : (
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 3 } }}>
         {/* Today */}
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #F44336' }}>
+          <Card sx={{ borderLeft: '4px solid var(--fh-down)' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <TrendingDown sx={{ color: '#F44336' }} />
+                <TrendingDown sx={{ color: 'var(--fh-down)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Today's Spending
                 </Typography>
               </Box>
-              {summaryQuery.isLoading ? (
-                <Skeleton variant="text" width={120} height={40} />
-              ) : (
-                <Typography variant="h5" fontWeight={700}>
-                  {formatCurrency(summary?.todaySpending ?? 0)}
-                </Typography>
-              )}
+              <Typography variant="h5" fontWeight={700}>
+                {formatCurrency(summary?.todaySpending ?? 0)}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
         {/* This Month */}
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #FF9800' }}>
+          <Card sx={{ borderLeft: '4px solid var(--fh-warn)' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <CalendarMonth sx={{ color: '#FF9800' }} />
+                <CalendarMonth sx={{ color: 'var(--fh-warn)' }} />
                 <Typography variant="body2" color="text.secondary">
                   This Month
                 </Typography>
               </Box>
-              {summaryQuery.isLoading ? (
-                <Skeleton variant="text" width={120} height={40} />
-              ) : (
-                <Typography variant="h5" fontWeight={700}>
-                  {formatCurrency(summary?.monthSpending ?? 0)}
-                </Typography>
-              )}
+              <Typography variant="h5" fontWeight={700}>
+                {formatCurrency(summary?.monthSpending ?? 0)}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Top Category */}
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #9C27B0' }}>
+          <Card sx={{ borderLeft: '4px solid #a855f7' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <Category sx={{ color: '#9C27B0' }} />
+                <Category sx={{ color: '#a855f7' }} />
                 <Typography variant="body2" color="text.secondary">
                   Top Category
                 </Typography>
               </Box>
-              {summaryQuery.isLoading ? (
-                <Skeleton variant="text" width={120} height={40} />
-              ) : (
-                <Typography variant="h5" fontWeight={700}>
-                  {summary?.topCategory ?? '—'}
-                </Typography>
-              )}
+              <Typography variant="h5" fontWeight={700}>
+                {summary?.topCategory ?? '—'}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Savings Rate */}
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #4CAF50' }}>
+          <Card sx={{ borderLeft: '4px solid var(--fh-up)' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
-                <Savings sx={{ color: '#4CAF50' }} />
+                <Savings sx={{ color: 'var(--fh-up)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Savings Rate
                 </Typography>
               </Box>
-              {summaryQuery.isLoading ? (
-                <Skeleton variant="text" width={120} height={40} />
-              ) : (
-                <Typography variant="h5" fontWeight={700} color="success.main">
-                  {(summary?.savingsRate ?? 0).toFixed(1)}%
-                </Typography>
-              )}
+              <Typography variant="h5" fontWeight={700} color="success.main">
+                {(summary?.savingsRate ?? 0).toFixed(1)}%
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+      )}
 
       {/* Tabs */}
       <Card>
@@ -420,14 +441,17 @@ const Expenses: React.FC = () => {
           <Tabs
             value={activeTab}
             onChange={(_, v) => setActiveTab(v)}
-            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ borderBottom: 1, borderColor: 'divider', px: { xs: 0, sm: 2 } }}
           >
             <Tab label="All Expenses" />
             <Tab label="Analytics" />
             <Tab label="Budget" />
           </Tabs>
 
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
             {/* ── Tab 0: All Expenses ─────────────────────────────────────────── */}
             <TabPanel value={activeTab} index={0}>
               {/* Filter Bar */}
@@ -485,7 +509,7 @@ const Expenses: React.FC = () => {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={3} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
                   <Button
                     startIcon={<FilterList />}
                     onClick={() => {
@@ -504,11 +528,7 @@ const Expenses: React.FC = () => {
 
               {/* Expense List */}
               {expensesQuery.isLoading ? (
-                <Box>
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 1, borderRadius: 1 }} />
-                  ))}
-                </Box>
+                <ListSkeleton rows={5} title={false} avatar />
               ) : expensesQuery.isError ? (
                 <Alert severity="error">Failed to load expenses. Please try again.</Alert>
               ) : expenses.length === 0 ? (
@@ -521,27 +541,31 @@ const Expenses: React.FC = () => {
                     <Card
                       key={expense._id}
                       variant="outlined"
-                      sx={{ '&:hover': { boxShadow: 2 }, transition: 'box-shadow 0.2s' }}
+                      sx={{
+                        '&:hover': { borderColor: 'rgba(99,102,241,0.4)' },
+                        transition: 'border-color 0.2s',
+                      }}
                     >
-                      <CardContent sx={{ py: '12px !important' }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Box display="flex" alignItems="center" gap={2}>
+                      <CardContent sx={{ py: '12px !important', px: { xs: 1.5, sm: 2 } }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
+                          <Box display="flex" alignItems="center" gap={{ xs: 1.5, sm: 2 }} sx={{ minWidth: 0, flex: 1 }}>
                             <Box
                               sx={{
                                 width: 40,
                                 height: 40,
                                 borderRadius: '50%',
-                                backgroundColor: CATEGORY_COLORS[expense.category] + '20',
+                                backgroundColor: `color-mix(in srgb, ${CATEGORY_COLORS[expense.category]} 13%, transparent)`,
                                 color: CATEGORY_COLORS[expense.category],
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                flexShrink: 0,
                               }}
                             >
                               {CATEGORY_ICONS[expense.category]}
                             </Box>
-                            <Box>
-                              <Typography variant="body1" fontWeight={600}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="body1" fontWeight={600} noWrap>
                                 {expense.description || expense.category}
                               </Typography>
                               <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
@@ -560,15 +584,20 @@ const Expenses: React.FC = () => {
                                   sx={{
                                     height: 18,
                                     fontSize: '0.65rem',
-                                    backgroundColor: CATEGORY_COLORS[expense.category] + '30',
+                                    backgroundColor: `color-mix(in srgb, ${CATEGORY_COLORS[expense.category]} 19%, transparent)`,
                                     color: CATEGORY_COLORS[expense.category],
                                   }}
                                 />
                               </Box>
                             </Box>
                           </Box>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="h6" fontWeight={700} color="error.main">
+                          <Box display="flex" alignItems="center" gap={{ xs: 0.5, sm: 1 }} sx={{ flexShrink: 0 }}>
+                            <Typography
+                              variant="h6"
+                              fontWeight={700}
+                              color="error.main"
+                              sx={{ fontSize: { xs: '0.95rem', sm: '1.25rem' }, whiteSpace: 'nowrap' }}
+                            >
                               -{formatCurrency(expense.amount)}
                             </Typography>
                             <Tooltip title="Delete">
@@ -599,34 +628,38 @@ const Expenses: React.FC = () => {
             {/* ── Tab 1: Analytics ────────────────────────────────────────────── */}
             <TabPanel value={activeTab} index={1}>
               {analyticsQuery.isLoading ? (
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={7}><Skeleton variant="rectangular" height={300} /></Grid>
-                  <Grid item xs={12} md={5}><Skeleton variant="rectangular" height={300} /></Grid>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
+                  <Grid item xs={12} md={7}><ChartSkeleton height={280} /></Grid>
+                  <Grid item xs={12} md={5}><ChartSkeleton height={280} /></Grid>
                 </Grid>
               ) : analyticsQuery.isError ? (
                 <Alert severity="error">Failed to load analytics.</Alert>
               ) : (
                 <>
-                  <Grid container spacing={3} mb={3}>
+                  <Grid container spacing={{ xs: 2, md: 3 }} mb={3}>
                     {/* Daily Bar Chart */}
-                    <Grid item xs={12} md={7}>
-                      <Typography variant="h6" fontWeight={600} mb={2}>
+                    <Grid item xs={12} md={7} sx={{ minWidth: 0 }}>
+                      <Typography variant="h6" fontWeight={600} mb={2} sx={{ color: 'var(--fh-text)' }}>
                         Daily Spending — Last 30 Days
                       </Typography>
                       <ResponsiveContainer width="100%" height={280}>
                         <BarChart data={dailyData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <RechartsTooltip formatter={(v: number) => formatCurrency(v)} />
-                          <Bar dataKey="amount" fill="#1976d2" radius={[4, 4, 0, 0]} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--fh-text-3)' }} stroke="rgba(148,163,184,0.3)" />
+                          <YAxis tick={{ fontSize: 11, fill: 'var(--fh-text-3)' }} stroke="rgba(148,163,184,0.3)" width={isMobile ? 40 : 60} />
+                          <RechartsTooltip
+                            formatter={(v: number) => formatCurrency(v)}
+                            contentStyle={TOOLTIP_STYLE}
+                            cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                          />
+                          <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </Grid>
 
                     {/* Category Pie Chart */}
-                    <Grid item xs={12} md={5}>
-                      <Typography variant="h6" fontWeight={600} mb={2}>
+                    <Grid item xs={12} md={5} sx={{ minWidth: 0 }}>
+                      <Typography variant="h6" fontWeight={600} mb={2} sx={{ color: 'var(--fh-text)' }}>
                         Category Breakdown
                       </Typography>
                       <ResponsiveContainer width="100%" height={280}>
@@ -637,9 +670,12 @@ const Expenses: React.FC = () => {
                             nameKey="category"
                             cx="50%"
                             cy="50%"
-                            outerRadius={90}
-                            label={({ category, percent }) =>
-                              `${category} ${(percent * 100).toFixed(0)}%`
+                            outerRadius={isMobile ? 70 : 90}
+                            stroke="var(--fh-paper-solid)"
+                            label={
+                              isMobile
+                                ? false
+                                : ({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`
                             }
                             labelLine={false}
                           >
@@ -650,15 +686,15 @@ const Expenses: React.FC = () => {
                               />
                             ))}
                           </Pie>
-                          <Legend />
-                          <RechartsTooltip formatter={(v: number) => formatCurrency(v)} />
+                          <Legend wrapperStyle={{ color: 'var(--fh-text-3)', fontSize: 12 }} />
+                          <RechartsTooltip formatter={(v: number) => formatCurrency(v)} contentStyle={TOOLTIP_STYLE} />
                         </PieChart>
                       </ResponsiveContainer>
                     </Grid>
                   </Grid>
 
                   {/* Stat Cards */}
-                  <Grid container spacing={2}>
+                  <Grid container spacing={{ xs: 2, md: 3 }}>
                     {[
                       {
                         label: 'Avg Daily Spend',
@@ -676,7 +712,7 @@ const Expenses: React.FC = () => {
                       <Grid item xs={12} sm={4} key={stat.label}>
                         <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
                           <Typography variant="body2" color="text.secondary">{stat.label}</Typography>
-                          <Typography variant="h6" fontWeight={700} mt={0.5}>{stat.value}</Typography>
+                          <Typography variant="h6" fontWeight={700} mt={0.5} noWrap>{stat.value}</Typography>
                         </Card>
                       </Grid>
                     ))}
@@ -688,15 +724,11 @@ const Expenses: React.FC = () => {
             {/* ── Tab 2: Budget ───────────────────────────────────────────────── */}
             <TabPanel value={activeTab} index={2}>
               {budgetsQuery.isLoading ? (
-                <Box>
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 2, borderRadius: 1 }} />
-                  ))}
-                </Box>
+                <CardGridSkeleton count={6} height={170} />
               ) : budgetsQuery.isError ? (
                 <Alert severity="error">Failed to load budgets.</Alert>
               ) : (
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
                   {CATEGORIES.map((cat) => {
                     const item = budgets.find((b) => b.category === cat);
                     const budget = item?.budget ?? 0;
@@ -705,7 +737,7 @@ const Expenses: React.FC = () => {
                     const over = budget > 0 && spent > budget;
 
                     return (
-                      <Grid item xs={12} sm={6} key={cat}>
+                      <Grid item xs={12} sm={6} lg={4} xl={3} key={cat}>
                         <Card variant="outlined" sx={{ borderColor: over ? 'error.main' : 'divider' }}>
                           <CardContent>
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
@@ -721,7 +753,7 @@ const Expenses: React.FC = () => {
                                 <Chip label="Over Budget" size="small" color="error" />
                               )}
                             </Box>
-                            <Box display="flex" justifyContent="space-between" mb={1}>
+                            <Box display="flex" justifyContent="space-between" flexWrap="wrap" columnGap={2} mb={1}>
                               <Typography variant="body2" color="text.secondary">
                                 Spent: <strong>{formatCurrency(spent)}</strong>
                               </Typography>
@@ -766,7 +798,8 @@ const Expenses: React.FC = () => {
       {activeTab === 0 && (
         <Fab
           color="primary"
-          sx={{ position: 'fixed', bottom: 32, right: 32 }}
+          aria-label="Add expense"
+          sx={{ position: 'fixed', bottom: { xs: 16, md: 32 }, right: { xs: 16, md: 32 } }}
           onClick={() => setOpenAddDialog(true)}
         >
           <Add />
@@ -774,7 +807,13 @@ const Expenses: React.FC = () => {
       )}
 
       {/* Add Expense Dialog */}
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={openAddDialog}
+        onClose={() => setOpenAddDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>Add Expense</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>

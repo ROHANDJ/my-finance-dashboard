@@ -3,6 +3,7 @@ import { Box, Typography, Skeleton } from '@mui/material';
 import axios from 'axios';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import IndexChartDialog, { ChartableIndex } from '../IndexChart/IndexChartDialog';
 
 interface IndexData {
   symbol: string;
@@ -20,6 +21,8 @@ const MarketTicker: React.FC = () => {
   const [indices, setIndices] = useState<IndexData[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(false); // stop scrolling while hovered so items are clickable
+  const [chartIndex, setChartIndex] = useState<ChartableIndex | null>(null);
 
   const fetchIndices = async () => {
     try {
@@ -46,7 +49,7 @@ const MarketTicker: React.FC = () => {
     const speed = 0.6;
     let frame: number;
     const tick = () => {
-      pos += speed;
+      if (!pausedRef.current) pos += speed;
       if (pos >= el.scrollWidth / 2) pos = 0;
       el.scrollLeft = pos;
       frame = requestAnimationFrame(tick);
@@ -77,6 +80,8 @@ const MarketTicker: React.FC = () => {
     >
       <Box
         ref={scrollRef}
+        onMouseEnter={() => { pausedRef.current = true; }}
+        onMouseLeave={() => { pausedRef.current = false; }}
         sx={{
           display: 'flex',
           gap: 0,
@@ -88,11 +93,17 @@ const MarketTicker: React.FC = () => {
       >
         {doubled.map((idx, i) => {
           const up = idx.change >= 0;
-          const color = up ? '#10b981' : '#f43f5e';
+          const color = up ? 'var(--fh-up)' : 'var(--fh-down)';
           return (
             <Box
               key={`${idx.symbol}_${i}`}
+              onClick={() => setChartIndex({ symbol: idx.symbol, name: idx.name })}
+              role="button"
+              title={`${idx.name} — view chart`}
               sx={{
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+                '&:hover': { background: 'rgba(99,102,241,0.1)' },
                 display: 'flex',
                 alignItems: 'center',
                 gap: 0.75,
@@ -104,10 +115,10 @@ const MarketTicker: React.FC = () => {
               }}
             >
               <Box>
-                <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.04em', lineHeight: 1 }}>
+                <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--fh-text-3)', letterSpacing: '0.04em', lineHeight: 1 }}>
                   {idx.short}
                 </Typography>
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', lineHeight: 1.3 }}>
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--fh-text)', lineHeight: 1.3 }}>
                   {idx.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
@@ -123,6 +134,12 @@ const MarketTicker: React.FC = () => {
           );
         })}
       </Box>
+      <IndexChartDialog
+        open={!!chartIndex}
+        onClose={() => setChartIndex(null)}
+        index={chartIndex}
+        indices={indices.map(ix => ({ symbol: ix.symbol, name: ix.name }))}
+      />
     </Box>
   );
 };

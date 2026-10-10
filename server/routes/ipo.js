@@ -1,260 +1,243 @@
 'use strict';
 const express = require('express');
-const https   = require('https');
+const axios   = require('axios');
 const auth    = require('../middleware/auth');
+const { enrichHoldings } = require('../services/marketDataService');
 const router  = express.Router();
 
 // ---------------------------------------------------------------------------
-// NSE fetch helpers
+// NSE session
+// NSE's JSON API rejects requests without the cookies its website sets, so
+// we load a page first and reuse those cookies for a few minutes.
 // ---------------------------------------------------------------------------
 
-const NSE_HEADERS = {
-  'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept':          'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Referer':         'https://www.nseindia.com/',
-  'Connection':      'keep-alive',
-};
+const NSE_BASE = 'https://www.nseindia.com';
+const NSE_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const COOKIE_TTL_MS = 5 * 60 * 1000;
 
-/**
- * Fetch JSON from an NSE URL.  Returns null on any error so callers can fall
- * back gracefully without crashing the request.
- */
-function fetchNse(path) {
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'www.nseindia.com',
-      path,
-      method:  'GET',
-      headers: NSE_HEADERS,
-      timeout: 8000,
-    };
-    const req = https.request(options, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(raw)); }
-        catch { resolve(null); }
-      });
-    });
-    req.on('error',   () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-    req.end();
+let _cookie   = '';
+let _cookieTs = 0;
+
+async function getNseCookie(force = false) {
+  if (!force && _cookie && Date.now() - _cookieTs < COOKIE_TTL_MS) return _cookie;
+  const res = await axios.get(`${NSE_BASE}/market-data/all-upcoming-issues-ipo`, {
+    headers: { 'User-Agent': NSE_UA, Accept: 'text/html,application/xhtml+xml' },
+    timeout: 10000,
+    validateStatus: () => true,
   });
+  _cookie   = (res.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+  _cookieTs = Date.now();
+  return _cookie;
+}
+
+async function fetchNse(path) {
+  const get = async (cookie) => axios.get(`${NSE_BASE}${path}`, {
+    headers: {
+      'User-Agent': NSE_UA,
+      Accept: 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      Referer: `${NSE_BASE}/market-data/all-upcoming-issues-ipo`,
+      Cookie: cookie,
+    },
+    timeout: 10000,
+  });
+
+  try {
+    return (await get(await getNseCookie())).data;
+  } catch (err) {
+    // Cookies expire early sometimes — refresh once and retry.
+    if (err.response && [401, 403].includes(err.response.status)) {
+      return (await get(await getNseCookie(true))).data;
+    }
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Map NSE item → our internal shape
+// Parsing helpers
 // ---------------------------------------------------------------------------
 
-function mapNseIpo(item, status) {
-  const openDate    = item.ipoOpenDate    || item.openDate    || null;
-  const closeDate   = item.ipoCloseDate   || item.closeDate   || null;
-  const listingDate = item.listingDate    || item.allotmentDate || null;
-  const minPrice    = item.minBidPrice    || item.offeringPrice || item.priceMin || null;
-  const maxPrice    = item.maxBidPrice    || item.offeringPrice || item.priceMax || null;
+const MONTHS = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+
+/**
+ * "15-Oct-2026" / "07-OCT-2026" → Date at noon IST (06:30 UTC), so the calendar
+ * day is the same in any viewer timezone from UTC-6 to UTC+17. Else null.
+ */
+function parseNseDate(s) {
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(String(s || '').trim());
+  if (!m || MONTHS[m[2].toUpperCase()] === undefined) return null;
+  return new Date(Date.UTC(+m[3], MONTHS[m[2].toUpperCase()], +m[1], 6, 30));
+}
+
+/** Calendar day in IST as "YYYY-MM-DD" (NSE dates are IST days). */
+const istDay = (d) => new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+
+/** "Rs.258 to Rs.271" → { min: 258, max: 271 }; "Rs.100" → { min: 100, max: 100 } */
+function parsePriceRange(s) {
+  const nums = String(s || '').match(/\d+(\.\d+)?/g);
+  if (!nums) return null;
+  const vals = nums.map(Number);
+  return { min: Math.min(...vals), max: Math.max(...vals) };
+}
+
+function parseNumber(s) {
+  const n = parseFloat(String(s || '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+// Equity issues only — NSE also lists debt, InvITs, REITs, rights etc.
+const EQUITY_SERIES = new Set(['EQ', 'SME', 'BE']);
+
+function statusFromDates(open, close, listing) {
+  const today = istDay(new Date());
+  if (listing && istDay(listing) <= today) return 'listed';
+  if (open && istDay(open) > today) return 'upcoming';
+  if (close && istDay(close) >= today) return 'open';
+  return 'closed'; // bidding over, awaiting listing
+}
+
+/** Normalise an item from any of the NSE IPO endpoints to our shape. */
+function mapNseIpo(item) {
+  const series    = String(item.series || item.securityType || '').trim().toUpperCase();
+  const openDate  = parseNseDate(item.issueStartDate || item.ipoStartDate);
+  const closeDate = parseNseDate(item.issueEndDate   || item.ipoEndDate);
+  const listDate  = parseNseDate(item.listingDate);
+  const range     = parsePriceRange(item.priceBand || item.priceRange || item.issuePrice);
+  const finalPrice = parseNumber(item.issuePrice && !/to/i.test(item.issuePrice) ? item.issuePrice : null);
 
   return {
-    id:          `nse_${item.symbol || item.companyName || Math.random().toString(36).slice(2)}`,
-    symbol:      item.symbol      || '',
-    companyName: item.companyName || item.name || '',
+    id:          `nse_${item.symbol}`,
+    symbol:      item.symbol || '',
+    companyName: (item.companyName || item.company || '').trim(),
     exchange:    'NSE',
     country:     'IN',
     currency:    'INR',
-    status,
+    status:      statusFromDates(openDate, closeDate, listDate),
+    isSme:       series === 'SME',
     timeline: {
-      openDate:    openDate    ? new Date(openDate)    : null,
-      closeDate:   closeDate   ? new Date(closeDate)   : null,
-      listingDate: listingDate ? new Date(listingDate) : null,
+      openDate:    openDate  ? openDate.toISOString()  : null,
+      closeDate:   closeDate ? closeDate.toISOString() : null,
+      listingDate: listDate  ? listDate.toISOString()  : null,
     },
     offering: {
-      priceRange: { min: minPrice, max: maxPrice },
-      finalPrice: item.offeringPrice || null,
-      totalAmount: item.issueSize   || null,
+      priceRange:  range,
+      finalPrice,
+      totalShares: parseNumber(item.issueSize),
+      lotSize:     parseNumber(item.lotSize),
     },
-    details: {
-      description: item.issueDescription || '',
-      industry:    item.industry  || '',
-      sector:      item.sector    || '',
-      series:      item.series    || '',
-    },
-    // analysis kept as demo; see /analysis/:symbol
+    details: { series },
+    // NSE provides no recommendation; we don't invent one.
     analysis: null,
-    _raw: item,   // keep raw for debugging; strip before sending if desired
   };
 }
 
 // ---------------------------------------------------------------------------
-// Demo fallback data (used when NSE is unreachable)
+// Live IPO list (cached 10 min). Returns null when NSE can't be reached.
 // ---------------------------------------------------------------------------
 
-function daysFromNow(n) { const d = new Date(); d.setDate(d.getDate() + n); return d; }
-function daysAgo(n)     { const d = new Date(); d.setDate(d.getDate() - n); return d; }
-
-const DEMO_IPOS = [
-  {
-    id: 'ipo_001', symbol: 'TECHIPO', companyName: 'Tech Innovators Ltd',
-    exchange: 'NSE', country: 'IN', currency: 'INR', status: 'upcoming',
-    timeline: { openDate: daysFromNow(8), closeDate: daysFromNow(11), listingDate: daysFromNow(18) },
-    offering: { totalShares: 10000000, priceRange: { min: 850, max: 900 }, totalAmount: 8750000000 },
-    details: { description: 'Leading cloud-based enterprise software solutions provider with 200+ enterprise clients.', industry: 'Information Technology', sector: 'Technology' },
-    analysis: { recommendation: 'subscribe', rating: 4, pros: ['High revenue growth (45% YoY)', 'Asset-light SaaS model'], cons: ['High valuation at 35x P/E'], valuation: 'fair', keyHighlights: ['₹875 Cr issue size', 'Profitable for 3 consecutive years'] }
-  },
-  {
-    id: 'ipo_002', symbol: 'GREENERGY', companyName: 'Green Energy Solutions Pvt Ltd',
-    exchange: 'BSE', country: 'IN', currency: 'INR', status: 'upcoming',
-    timeline: { openDate: daysFromNow(15), closeDate: daysFromNow(18), listingDate: daysFromNow(25) },
-    offering: { totalShares: 8000000, priceRange: { min: 400, max: 425 }, totalAmount: 3300000000 },
-    details: { description: 'Renewable energy EPC company with 2.5 GW of installed solar capacity.', industry: 'Renewable Energy', sector: 'Energy' },
-    analysis: { recommendation: 'neutral', rating: 3, pros: ["Tailwind from government's 500 GW target"], cons: ['Margin pressure from raw material costs'], valuation: 'fair', keyHighlights: ['₹330 Cr issue', 'Order book ₹1,200 Cr'] }
-  },
-  {
-    id: 'ipo_003', symbol: 'HEALTHIPO', companyName: 'HealthFirst Diagnostics Ltd',
-    exchange: 'NSE', country: 'IN', currency: 'INR', status: 'open',
-    timeline: { openDate: daysAgo(1), closeDate: daysFromNow(2), listingDate: daysFromNow(9) },
-    offering: { totalShares: 5000000, priceRange: { min: 1200, max: 1250 }, totalAmount: 6125000000 },
-    subscription: { retail: { subscribed: 3000000, total: 2000000, percentage: 150 }, nii: { subscribed: 2200000, total: 1000000, percentage: 220 }, qib: { subscribed: 3800000, total: 2000000, percentage: 190 } },
-    details: { description: 'Pan-India chain of diagnostic centres with 180+ labs.', industry: 'Healthcare', sector: 'Diagnostics' },
-    analysis: { recommendation: 'subscribe', rating: 4, pros: ['Subscription 1.87x on Day 2', 'Defensive sector'], cons: ['High debt post-expansion'], valuation: 'fair', keyHighlights: ['Over-subscribed by 187%'] }
-  },
-  {
-    id: 'ipo_004', symbol: 'FINTECHIPO', companyName: 'PayFast Fintech Solutions',
-    exchange: 'NSE', country: 'IN', currency: 'INR', status: 'listed',
-    timeline: { listingDate: daysAgo(12) },
-    offering: { finalPrice: 750, totalAmount: 5000000000 },
-    listing: { listingPrice: 832, listingGain: 82, listingGainPercentage: 10.93, currentPrice: 890 },
-    details: { description: 'Digital payments and lending platform with 25M+ users.', industry: 'Fintech', sector: 'Financial Services' },
-    analysis: { recommendation: 'hold', rating: 3, pros: ['Strong listing gain (10.93%)'], cons: ['Competitive UPI landscape'], valuation: 'fair', keyHighlights: ['Listed at ₹832 vs issue price ₹750'] }
-  },
-  {
-    id: 'ipo_005', symbol: 'USTECH', companyName: 'US Technology Corp',
-    exchange: 'NASDAQ', country: 'US', currency: 'USD', status: 'upcoming',
-    timeline: { openDate: daysFromNow(5), closeDate: daysFromNow(7), listingDate: daysFromNow(14) },
-    offering: { totalShares: 5000000, priceRange: { min: 25, max: 28 }, totalAmount: 132500000 },
-    details: { description: 'AI-powered enterprise security solutions.', industry: 'Cybersecurity', sector: 'Technology' },
-    analysis: { recommendation: 'neutral', rating: 3, pros: ['High-growth AI segment'], cons: ['Pre-revenue company'], valuation: 'overvalued', keyHighlights: ['$132.5M raise'] }
-  },
-  {
-    id: 'ipo_006', symbol: 'ECOMIND', companyName: 'EcoMind Consumer Goods',
-    exchange: 'BSE', country: 'IN', currency: 'INR', status: 'listed',
-    timeline: { listingDate: daysAgo(25) },
-    offering: { finalPrice: 320, totalAmount: 1800000000 },
-    listing: { listingPrice: 370, listingGain: 50, listingGainPercentage: 15.63, currentPrice: 355 },
-    details: { description: 'Sustainable FMCG brand with D2C model.', industry: 'FMCG', sector: 'Consumer Goods' },
-    analysis: { recommendation: 'hold', rating: 3, pros: ['Strong D2C brand recall'], cons: ['High marketing spend pressuring margins'], valuation: 'fair', keyHighlights: ['Listed at ₹370 vs issue price ₹320'] }
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Fetch live IPO data from NSE (cached for 10 minutes)
-// ---------------------------------------------------------------------------
+const CACHE_TTL_MS     = 10 * 60 * 1000;
+const PAST_WINDOW_DAYS = 60;
 
 let _cache     = null;
 let _cacheTime = 0;
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 async function getLiveIpos() {
-  const now = Date.now();
-  if (_cache && (now - _cacheTime) < CACHE_TTL_MS) return _cache;
+  if (_cache && Date.now() - _cacheTime < CACHE_TTL_MS) return _cache;
 
-  try {
-    // Fetch both endpoints in parallel
-    const [allData, liveData] = await Promise.all([
-      fetchNse('/api/allIpo'),
-      fetchNse('/api/liveIpo'),
-    ]);
+  const results = await Promise.allSettled([
+    fetchNse('/api/ipo-current-issue'),
+    fetchNse('/api/all-upcoming-issues?category=ipo'),
+    fetchNse('/api/public-past-issues'),
+  ]);
 
-    // If NSE returned nothing useful, fall back
-    if (!allData && !liveData) return null;
-
-    const result = { upcoming: [], open: [], listed: [] };
-
-    // /api/allIpo → { upcoming:[], open:[], listed:[] }
-    if (allData) {
-      if (Array.isArray(allData.upcoming)) result.upcoming.push(...allData.upcoming.map(i => mapNseIpo(i, 'upcoming')));
-      if (Array.isArray(allData.open))     result.open.push(...allData.open.map(i => mapNseIpo(i, 'open')));
-      if (Array.isArray(allData.listed))   result.listed.push(...allData.listed.map(i => mapNseIpo(i, 'listed')));
-    }
-
-    // /api/liveIpo supplements open list (dedupe by symbol)
-    if (liveData) {
-      const liveArr = Array.isArray(liveData) ? liveData : (Array.isArray(liveData.data) ? liveData.data : []);
-      const existingOpen = new Set(result.open.map(i => i.symbol));
-      liveArr.forEach(item => {
-        const mapped = mapNseIpo(item, 'open');
-        if (!existingOpen.has(mapped.symbol)) {
-          result.open.push(mapped);
-          existingOpen.add(mapped.symbol);
-        }
-      });
-    }
-
-    // Only cache if we got actual data
-    const total = result.upcoming.length + result.open.length + result.listed.length;
-    if (total === 0) return null;
-
-    _cache     = result;
-    _cacheTime = now;
-    return result;
-  } catch (err) {
-    console.error('[ipo] NSE fetch error:', err.message);
+  const lists = results.map(r => (r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : null));
+  if (lists.every(l => l === null)) {
+    results.forEach(r => r.status === 'rejected' && console.error('[ipo] NSE fetch failed:', r.reason?.message));
     return null;
   }
+
+  const [current, upcoming, past] = lists.map(l => l || []);
+  const cutoff = new Date(Date.now() - PAST_WINDOW_DAYS * 86400 * 1000);
+
+  // Current/upcoming first so they win when the same symbol appears twice.
+  const bySymbol = new Map();
+  for (const raw of [...current, ...upcoming, ...past]) {
+    const series = String(raw.series || raw.securityType || '').trim().toUpperCase();
+    if (!raw.symbol || !EQUITY_SERIES.has(series) || bySymbol.has(raw.symbol)) continue;
+    const ipo = mapNseIpo(raw);
+    const close = ipo.timeline.closeDate && new Date(ipo.timeline.closeDate);
+    if (ipo.status !== 'upcoming' && ipo.status !== 'open' && close && close < cutoff) continue;
+    bySymbol.set(raw.symbol, ipo);
+  }
+
+  const ipos = [...bySymbol.values()].sort((a, b) =>
+    new Date(b.timeline.openDate || 0) - new Date(a.timeline.openDate || 0));
+
+  await addListingPrices(ipos);
+
+  _cache     = ipos;
+  _cacheTime = Date.now();
+  return ipos;
 }
+
+/** Attach today's price and gain over issue price to listed IPOs (one batch quote). */
+async function addListingPrices(ipos) {
+  const listed = ipos.filter(i => i.status === 'listed');
+  if (listed.length === 0) return;
+  try {
+    const quotes = await enrichHoldings(listed.map(i => ({ symbol: i.symbol, currency: 'INR' })));
+    quotes.forEach((q, k) => {
+      if (!q.currentPrice) return;
+      const ipo = listed[k];
+      const issuePrice = ipo.offering.finalPrice || ipo.offering.priceRange?.max || null;
+      ipo.listing = {
+        currentPrice: q.currentPrice,
+        issuePrice,
+        gainPercent: issuePrice ? +(((q.currentPrice - issuePrice) / issuePrice) * 100).toFixed(2) : null,
+      };
+    });
+  } catch (err) {
+    console.error('[ipo] listing prices failed:', err.message); // non-fatal
+  }
+}
+
+const UNAVAILABLE = { ipos: [], source: 'unavailable', message: 'Live IPO data from NSE is unavailable right now. Please try again later.' };
+
+// NSE only covers Indian IPOs; accept both spellings the client uses.
+const isUsMarket = (m) => ['us', 'US'].includes(m);
 
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
-// GET /  — all IPOs
+// GET /  — all IPOs (?status=upcoming|open|closed|listed)
 router.get('/', auth, async (req, res) => {
   try {
     const { market = 'both', status = 'all' } = req.query;
+    if (isUsMarket(market)) return res.json({ ipos: [], source: 'nse-live', message: 'US IPOs are not available yet.' });
 
     const live = await getLiveIpos();
-    let ipos;
+    if (!live) return res.json(UNAVAILABLE);
 
-    if (live) {
-      ipos = [...live.upcoming, ...live.open, ...live.listed];
-    } else {
-      ipos = [...DEMO_IPOS];
-    }
-
-    // Indian-only filter for live data (US not returned by NSE)
-    if (market === 'US') {
-      ipos = ipos.filter(i => i.country === 'US');
-    } else if (market === 'IN') {
-      ipos = ipos.filter(i => i.country === 'IN');
-    }
-
-    if (status !== 'all') ipos = ipos.filter(i => i.status === status);
-
-    res.json({ ipos, source: live ? 'nse-live' : 'demo' });
+    const ipos = status === 'all' ? live : live.filter(i => i.status === status);
+    res.json({ ipos, source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET / error:', err);
     res.status(500).json({ message: 'Error fetching IPOs' });
   }
 });
 
-// GET /calendar/upcoming
+// GET /calendar/upcoming — upcoming + currently open, soonest first
 router.get('/calendar/upcoming', auth, async (req, res) => {
   try {
-    const { market = 'both', limit = 10 } = req.query;
-
+    const limit = parseInt(req.query.limit) || 10;
     const live = await getLiveIpos();
-    let ipos;
+    if (!live) return res.json(UNAVAILABLE);
 
-    if (live) {
-      ipos = [...live.upcoming];
-    } else {
-      ipos = DEMO_IPOS.filter(i => i.status === 'upcoming');
-    }
-
-    if (market === 'US') ipos = ipos.filter(i => i.country === 'US');
-    else if (market === 'IN') ipos = ipos.filter(i => i.country === 'IN');
-
-    ipos.sort((a, b) => new Date(a.timeline.openDate) - new Date(b.timeline.openDate));
-    res.json({ ipos: ipos.slice(0, parseInt(limit)), source: live ? 'nse-live' : 'demo' });
+    const ipos = live
+      .filter(i => i.status === 'upcoming' || i.status === 'open')
+      .sort((a, b) => new Date(a.timeline.openDate || 0) - new Date(b.timeline.openDate || 0));
+    res.json({ ipos: ipos.slice(0, limit), source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET /calendar/upcoming error:', err);
     res.status(500).json({ message: 'Error fetching upcoming IPOs' });
@@ -264,48 +247,30 @@ router.get('/calendar/upcoming', auth, async (req, res) => {
 // GET /calendar/open
 router.get('/calendar/open', auth, async (req, res) => {
   try {
-    const { market = 'both' } = req.query;
-
     const live = await getLiveIpos();
-    let ipos;
-
-    if (live) {
-      ipos = [...live.open];
-    } else {
-      ipos = DEMO_IPOS.filter(i => i.status === 'open');
-    }
-
-    if (market === 'US') ipos = ipos.filter(i => i.country === 'US');
-    else if (market === 'IN') ipos = ipos.filter(i => i.country === 'IN');
-
-    res.json({ ipos, source: live ? 'nse-live' : 'demo' });
+    if (!live) return res.json(UNAVAILABLE);
+    res.json({ ipos: live.filter(i => i.status === 'open'), source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET /calendar/open error:', err);
     res.status(500).json({ message: 'Error fetching open IPOs' });
   }
 });
 
-// GET /calendar/listed
+// GET /calendar/listed?days=30 — listed (or closed, awaiting listing) recently
 router.get('/calendar/listed', auth, async (req, res) => {
   try {
-    const { market = 'both', days = 30 } = req.query;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - parseInt(days));
+    const days = Math.min(parseInt(req.query.days) || 30, PAST_WINDOW_DAYS);
+    const cutoff = new Date(Date.now() - days * 86400 * 1000);
 
     const live = await getLiveIpos();
-    let ipos;
+    if (!live) return res.json(UNAVAILABLE);
 
-    if (live) {
-      ipos = live.listed.filter(i => !i.timeline.listingDate || new Date(i.timeline.listingDate) >= cutoff);
-    } else {
-      ipos = DEMO_IPOS.filter(i => i.status === 'listed' && new Date(i.timeline.listingDate) >= cutoff);
-    }
-
-    if (market === 'US') ipos = ipos.filter(i => i.country === 'US');
-    else if (market === 'IN') ipos = ipos.filter(i => i.country === 'IN');
-
-    ipos.sort((a, b) => new Date(b.timeline.listingDate) - new Date(a.timeline.listingDate));
-    res.json({ ipos, source: live ? 'nse-live' : 'demo' });
+    const ipos = live.filter(i => {
+      if (i.status !== 'listed' && i.status !== 'closed') return false;
+      const d = i.timeline.listingDate || i.timeline.closeDate;
+      return !d || new Date(d) >= cutoff;
+    });
+    res.json({ ipos, source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET /calendar/listed error:', err);
     res.status(500).json({ message: 'Error fetching listed IPOs' });
@@ -317,54 +282,178 @@ router.get('/compare', auth, async (req, res) => {
   try {
     const { symbols } = req.query;
     if (!symbols) return res.status(400).json({ message: 'Symbols are required' });
-    const symbolArray = symbols.split(',').map(s => s.trim().toUpperCase());
+    const wanted = new Set(symbols.split(',').map(s => s.trim().toUpperCase()));
 
     const live = await getLiveIpos();
-    const allIpos = live
-      ? [...live.upcoming, ...live.open, ...live.listed]
-      : DEMO_IPOS;
-
-    const comparison = allIpos.filter(i => symbolArray.includes((i.symbol || '').toUpperCase()));
-    res.json({ comparison, source: live ? 'nse-live' : 'demo' });
+    if (!live) return res.json({ comparison: [], ...UNAVAILABLE });
+    res.json({ comparison: live.filter(i => wanted.has(i.symbol.toUpperCase())), source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET /compare error:', err);
     res.status(500).json({ message: 'Error comparing IPOs' });
   }
 });
 
-// GET /analysis/:symbol — always uses demo analysis data
-router.get('/analysis/:symbol', auth, async (req, res) => {
+// ---------------------------------------------------------------------------
+// Rich per-issue details from NSE's issue-information page:
+// subscription by category, issue terms, intermediaries, official documents.
+// ---------------------------------------------------------------------------
+
+const DETAIL_TTL_MS = 5 * 60 * 1000; // subscription numbers update during bidding
+const _detailCache = new Map();
+
+const stripHtml = (s) => String(s ?? '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/^"+|"+$/g, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/** First http(s) URL in a value (values are sometimes raw URLs, sometimes <a href=...>). */
+const firstUrl = (s) => (String(s ?? '').match(/https?:\/\/[^\s"'<>]+/) || [null])[0];
+
+// NSE issue-info titles we surface, keyed by our field name. Matched by prefix
+// because NSE varies the wording slightly between issues.
+const INFO_FIELDS = {
+  issueType:      'Issue Type',
+  issueSize:      'Issue Size',
+  priceRange:     'Price Range',
+  faceValue:      'Face Value',
+  bidLot:         'Bid Lot',
+  minOrderQty:    'Minimum Order Quantity',
+  maxRetail:      'Maximum Subscription Amount for Retail',
+  discount:       'Discount',
+  leadManagers:   'Book Running Lead Managers',
+  sponsorBank:    'Sponsor Bank',
+  registrar:      'Name of the Registrar',
+  registrarContact: 'Contact person name number and Email',
+  upiCutoff:      'Cut-off time for UPI Mandate',
+};
+
+const DOC_FIELDS = {
+  rhp:            'Red Herring Prospectus',
+  basisOfPrice:   'Ratios / Basis of Issue Price',
+  applicationForms: 'Sample Application Forms',
+};
+
+// Top-level subscription categories (sub-rows like "1(a)" are skipped).
+function subscriptionLabel(category, srNo) {
+  const c = String(category || '');
+  if (srNo === null || /^total$/i.test(c)) return 'Total';
+  if (/qualified institutional/i.test(c)) return 'QIB';
+  if (/^non institutional investors$/i.test(c)) return 'NII';
+  if (/retail/i.test(c)) return 'Retail';
+  if (/employee/i.test(c)) return 'Employees';
+  if (/shareholder/i.test(c)) return 'Shareholders';
+  return null;
+}
+
+function parseSubscription(json) {
+  // activeCat is the consolidated (NSE + BSE) view; fall back to NSE-only bidDetails.
+  const consolidated = (json.activeCat?.dataList || []).slice(1).map(r => ({
+    category: r.category, srNo: r.srNo, offered: r.noOfShareOffered, bid: r.noOfSharesBid, times: r.noOfTotalMeant,
+  }));
+  const nseOnly = (json.bidDetails || []).map(r => ({
+    category: r.category, srNo: r.srNo, offered: r.noOfSharesOffered, bid: r.noOfsharesBid, times: r.noOfTime,
+  }));
+  const rows = consolidated.length > 1 ? consolidated : nseOnly;
+
+  const out = [];
+  for (const r of rows) {
+    const label = subscriptionLabel(r.category, r.srNo);
+    if (!label || out.some(o => o.label === label)) continue;
+    const offered = parseNumber(r.offered);
+    const bid = parseNumber(r.bid);
+    if (!offered && !bid) continue;
+    // NSE reports the Total row's share counts in crores, unlike the other rows,
+    // so only its "times subscribed" figure is comparable.
+    const isTotal = label === 'Total';
+    out.push({
+      label,
+      sharesOffered: isTotal ? null : offered,
+      sharesBid: isTotal ? null : bid,
+      times: +(parseFloat(r.times) || 0).toFixed(2),
+    });
+  }
+  // Total last
+  return out.sort((a, b) => (a.label === 'Total') - (b.label === 'Total'));
+}
+
+function parseIssueInfo(json) {
+  const rows = (json.issueInfo?.dataList || []).filter(r => r.title);
+  const find = (prefix) => rows.find(r => String(r.title).trim().toLowerCase().startsWith(prefix.toLowerCase()));
+
+  const info = {};
+  for (const [key, prefix] of Object.entries(INFO_FIELDS)) {
+    const row = find(prefix);
+    if (row && stripHtml(row.value)) info[key] = stripHtml(row.value);
+  }
+  // Long legal text: keep the first sentence only.
+  if (info.upiCutoff) info.upiCutoff = info.upiCutoff.split(/\s(?=The\s)/)[0];
+
+  const documents = {};
+  for (const [key, prefix] of Object.entries(DOC_FIELDS)) {
+    const url = firstUrl(find(prefix)?.value);
+    if (url) documents[key] = url;
+  }
+  return { info, documents };
+}
+
+async function getIpoDetails(symbol, series) {
+  const key = `${symbol}_${series}`;
+  const hit = _detailCache.get(key);
+  if (hit && Date.now() - hit.ts < DETAIL_TTL_MS) return hit.data;
+
+  const json = await fetchNse(`/api/ipo-detail?symbol=${encodeURIComponent(symbol)}&series=${encodeURIComponent(series)}`);
+  const meta = json?.metaInfo || {};
+  const { info, documents } = parseIssueInfo(json || {});
+
+  const data = {
+    symbol,
+    industry: meta.industry || null,
+    isin: meta.isin || null,
+    listingDate: meta.listingDate || null,
+    info,
+    documents,
+    subscription: parseSubscription(json || {}),
+    subscriptionUpdated: json?.activeCat?.updateTime && !/null/.test(json.activeCat.updateTime)
+      ? json.activeCat.updateTime.replace(/^Updated as on\s*/i, '')
+      : null,
+  };
+  _detailCache.set(key, { data, ts: Date.now() });
+  return data;
+}
+
+function externalLinks(ipo) {
+  const q = encodeURIComponent(`${ipo.companyName} IPO`);
+  const listed = ipo.status === 'listed';
+  return {
+    nse: listed
+      ? `${NSE_BASE}/get-quotes/equity?symbol=${encodeURIComponent(ipo.symbol)}`
+      : `${NSE_BASE}/market-data/issue-information?symbol=${encodeURIComponent(ipo.symbol)}&series=${encodeURIComponent(ipo.details.series)}&type=Active`,
+    news: `https://www.google.com/search?q=${q}&tbm=nws`,
+    web: `https://www.google.com/search?q=${q}`,
+  };
+}
+
+// GET /:symbol/details — rich details for one IPO
+router.get('/:symbol/details', auth, async (req, res) => {
   try {
     const sym = req.params.symbol.toUpperCase();
-
-    // First try to find in demo set for curated analysis
-    const demo = DEMO_IPOS.find(i => i.symbol.toUpperCase() === sym);
-    if (demo && demo.analysis) return res.json({ analysis: demo.analysis, source: 'demo' });
-
-    // Try live data; analysis will be null but at least we confirm it exists
     const live = await getLiveIpos();
-    if (live) {
-      const allIpos = [...live.upcoming, ...live.open, ...live.listed];
-      const found = allIpos.find(i => (i.symbol || '').toUpperCase() === sym);
-      if (found) {
-        return res.json({
-          analysis: {
-            recommendation: 'neutral',
-            rating: 3,
-            pros: ['Listed on NSE'],
-            cons: ['Analysis not yet available'],
-            valuation: 'unknown',
-            keyHighlights: [`Company: ${found.companyName}`],
-          },
-          source: 'nse-live',
-        });
-      }
-    }
+    if (!live) return res.status(503).json(UNAVAILABLE);
 
-    res.status(404).json({ message: 'IPO not found' });
+    const ipo = live.find(i => i.symbol.toUpperCase() === sym);
+    if (!ipo) return res.status(404).json({ message: 'IPO not found' });
+
+    let details = null;
+    try {
+      details = await getIpoDetails(ipo.symbol, ipo.details.series);
+    } catch (err) {
+      console.error('[ipo] detail fetch failed:', sym, err.message); // links still useful
+    }
+    res.json({ ipo, details, links: externalLinks(ipo), source: 'nse-live' });
   } catch (err) {
-    console.error('[ipo] GET /analysis/:symbol error:', err);
-    res.status(500).json({ message: 'Error analyzing IPO' });
+    console.error('[ipo] GET /:symbol/details error:', err);
+    res.status(500).json({ message: 'Error fetching IPO details' });
   }
 });
 
@@ -372,19 +461,12 @@ router.get('/analysis/:symbol', auth, async (req, res) => {
 router.get('/:symbol', auth, async (req, res) => {
   try {
     const sym = req.params.symbol.toUpperCase();
-
     const live = await getLiveIpos();
-    if (live) {
-      const allIpos = [...live.upcoming, ...live.open, ...live.listed];
-      const found = allIpos.find(i => (i.symbol || '').toUpperCase() === sym);
-      if (found) return res.json({ ipo: found, source: 'nse-live' });
-    }
+    if (!live) return res.status(503).json(UNAVAILABLE);
 
-    // Fallback to demo
-    const demo = DEMO_IPOS.find(i => i.symbol.toUpperCase() === sym);
-    if (demo) return res.json({ ipo: demo, source: 'demo' });
-
-    res.status(404).json({ message: 'IPO not found' });
+    const ipo = live.find(i => i.symbol.toUpperCase() === sym);
+    if (!ipo) return res.status(404).json({ message: 'IPO not found' });
+    res.json({ ipo, source: 'nse-live' });
   } catch (err) {
     console.error('[ipo] GET /:symbol error:', err);
     res.status(500).json({ message: 'Error fetching IPO details' });

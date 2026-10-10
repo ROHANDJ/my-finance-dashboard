@@ -9,16 +9,19 @@ const router = express.Router();
 // Helper: compute performance fields from holdings array
 // ---------------------------------------------------------------------------
 function calcPerformance(holdings = []) {
-  let totalInvested = 0, currentValue = 0;
+  let totalInvested = 0, currentValue = 0, dayChangeRaw = 0;
   holdings.forEach(h => {
     totalInvested += (h.quantity || 0) * (h.averagePrice || 0);
     currentValue  += (h.quantity || 0) * (h.currentPrice || 0);
+    // liveChange is today's per-share move, set by enrichHoldings; 0 when no live quote.
+    dayChangeRaw  += (h.quantity || 0) * (h.liveChange || 0);
   });
   const totalReturns = currentValue - totalInvested;
   const totalReturnsPercentage = totalInvested > 0 ? (totalReturns / totalInvested) * 100 : 0;
-  const dayChange = parseFloat((currentValue * 0.0084).toFixed(2));
-  const dayChangePercentage = currentValue > 0
-    ? parseFloat(((dayChange / currentValue) * 100).toFixed(2)) : 0;
+  const dayChange = parseFloat(dayChangeRaw.toFixed(2));
+  const previousValue = currentValue - dayChange;
+  const dayChangePercentage = previousValue > 0
+    ? parseFloat(((dayChange / previousValue) * 100).toFixed(2)) : 0;
   return {
     totalInvested: parseFloat(totalInvested.toFixed(2)),
     currentValue:  parseFloat(currentValue.toFixed(2)),
@@ -40,12 +43,21 @@ function mapPortfolio(row) {
     accountType: row.account_type,
     holdings,
     transactions: row.transactions || [],
-    performance: { ...calcPerformance(holdings), ...(row.performance || {}) },
+    // Computed values win; stored performance only fills fields we don't compute.
+    performance: { ...(row.performance || {}), ...calcPerformance(holdings) },
     risk: row.risk || {},
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+// Same as mapPortfolio, but refreshes holdings with live prices first so
+// current value and day change reflect the market (falls back to stored prices).
+async function mapPortfolioLive(row) {
+  if (!row) return null;
+  const holdings = await enrichHoldings(row.holdings || []);
+  return mapPortfolio({ ...row, holdings });
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +182,7 @@ router.get('/', auth, async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ portfolios: (data || []).map(mapPortfolio) });
+    res.json({ portfolios: await Promise.all((data || []).map(mapPortfolioLive)) });
   } catch (error) {
     console.error('Error fetching portfolios:', error);
     res.status(500).json({ message: 'Error fetching portfolios' });
@@ -220,7 +232,7 @@ router.get('/:id', auth, async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ message: 'Portfolio not found' });
 
-    res.json({ portfolio: mapPortfolio(data) });
+    res.json({ portfolio: await mapPortfolioLive(data) });
   } catch (error) {
     console.error('Error fetching portfolio:', error);
     res.status(500).json({ message: 'Error fetching portfolio' });

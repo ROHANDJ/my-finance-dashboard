@@ -5,12 +5,9 @@ import {
   Typography,
   TextField,
   IconButton,
-  List,
-  ListItem,
   Paper,
   Chip,
   Avatar,
-  Fab,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -242,40 +239,51 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
         onClose={onClose}
         PaperProps={{
           sx: {
-            width: 400,
+            // Full-screen sheet on phones, fixed-width side panel from sm up.
+            width: { xs: '100%', sm: 400 },
+            maxWidth: '100vw',
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
+            overflow: 'hidden',
+            backgroundColor: '#0b1120',
+            backgroundImage: 'none',
+            borderLeft: { xs: 'none', sm: '1px solid rgba(148,163,184,0.12)' },
           },
         }}
       >
         <Box
           sx={{
-            p: 2,
-            backgroundColor: 'primary.main',
-            color: 'primary.contrastText',
+            px: 2,
+            py: 1.5,
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.9) 0%, rgba(6,182,212,0.75) 100%)',
+            color: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 1,
+            flexShrink: 0,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SmartToy />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <SmartToy sx={{ flexShrink: 0 }} />
+            <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
               Financial Assistant
             </Typography>
           </Box>
-          <IconButton onClick={onClose} sx={{ color: 'inherit' }}>
+          <IconButton onClick={onClose} aria-label="Close assistant" sx={{ color: 'inherit', flexShrink: 0 }}>
             <Close />
           </IconButton>
         </Box>
 
-        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Box
             sx={{
               flex: 1,
-              overflow: 'auto',
-              p: 2,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              p: { xs: 1.5, sm: 2 },
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
@@ -298,15 +306,22 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
                       height: 32,
                       bgcolor: 'primary.main',
                       fontSize: '0.875rem',
+                      flexShrink: 0,
                     }}
                   >
                     <SmartToy fontSize="small" />
                   </Avatar>
                 )}
                 <Paper
+                  elevation={0}
                   sx={{
-                    p: 2,
-                    maxWidth: '70%',
+                    px: 2,
+                    py: 1.5,
+                    maxWidth: { xs: '80%', sm: '75%' },
+                    minWidth: 0,
+                    overflowWrap: 'anywhere',
+                    backgroundImage: 'none',
+                    border: message.sender === 'user' ? 'none' : '1px solid rgba(99,102,241,0.2)',
                     backgroundColor:
                       message.sender === 'user'
                         ? 'primary.main'
@@ -326,6 +341,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
                       height: 32,
                       bgcolor: 'secondary.main',
                       fontSize: '0.875rem',
+                      flexShrink: 0,
                     }}
                   >
                     <Person fontSize="small" />
@@ -336,11 +352,21 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
             
             {isLoading && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', flexShrink: 0 }}>
                   <SmartToy fontSize="small" />
                 </Avatar>
-                <Paper sx={{ p: 2, backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
-                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    px: 2,
+                    py: 1.5,
+                    backgroundImage: 'none',
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    border: '1px solid rgba(99,102,241,0.2)',
+                    borderRadius: '18px 18px 18px 4px',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'var(--fh-text-3)' }}>
                     Thinking...
                   </Typography>
                 </Paper>
@@ -351,8 +377,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
           </Box>
 
           {quickActions.length > 0 && messages.length === 1 && (
-            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+            <Box sx={{ p: { xs: 1.5, sm: 2 }, borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'var(--fh-text-3)' }}>
                 Quick Actions
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -366,6 +392,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
                     clickable
                     onClick={() => handleQuickAction(action.id)}
                     sx={{
+                      maxWidth: '100%',
+                      '& .MuiChip-icon': { display: 'flex', '& svg': { fontSize: 16 } },
                       '&:hover': {
                         backgroundColor: 'primary.main',
                         color: 'primary.contrastText',
@@ -377,7 +405,15 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
             </Box>
           )}
 
-          <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Box
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              pb: { xs: 'calc(12px + env(safe-area-inset-bottom))', sm: 2 },
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              flexShrink: 0,
+            }}
+          >
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
               <TextField
                 fullWidth
@@ -395,7 +431,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ open, onClose }) => {
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() || isLoading}
                 color="primary"
-                sx={{ p: 1 }}
+                aria-label="Send message"
+                sx={{ p: 1, flexShrink: 0 }}
               >
                 <Send />
               </IconButton>

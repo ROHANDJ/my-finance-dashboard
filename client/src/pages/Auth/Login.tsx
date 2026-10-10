@@ -113,7 +113,7 @@ const Login: React.FC = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      sx={{ color: '#64748b' }}
+                      sx={{ color: 'var(--fh-muted)' }}
                     >
                       {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                     </IconButton>
@@ -147,13 +147,13 @@ const Login: React.FC = () => {
             variant="outlined"
             onClick={handleDevLogin}
             disabled={isLoading}
-            sx={{ mb: 2, borderColor: 'rgba(245, 158, 11, 0.4)', color: '#f59e0b', '&:hover': { borderColor: '#f59e0b', background: 'rgba(245,158,11,0.08)' } }}
+            sx={{ mb: 2, borderColor: 'rgba(245, 158, 11, 0.4)', color: 'var(--fh-warn)', '&:hover': { borderColor: 'var(--fh-warn)', background: 'rgba(245,158,11,0.08)' } }}
           >
-            Dev Quick Login
+            Dev Quick Login (rohandj200@gmail.com)
           </Button>
         )}
 
-        <Typography sx={{ textAlign: 'center', color: '#64748b', fontSize: '0.83rem' }}>
+        <Typography sx={{ textAlign: 'center', color: 'var(--fh-muted)', fontSize: '0.83rem' }}>
           No account?{' '}
           <Link component={RouterLink} to="/register" sx={authLinkSx}>
             Create one

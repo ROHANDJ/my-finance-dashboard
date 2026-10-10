@@ -64,7 +64,7 @@ const ResetPassword: React.FC = () => {
         onClick={() => setShowPassword(!showPassword)}
         edge="end"
         aria-label={showPassword ? 'Hide password' : 'Show password'}
-        sx={{ color: '#64748b' }}
+        sx={{ color: 'var(--fh-muted)' }}
       >
         {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
       </IconButton>

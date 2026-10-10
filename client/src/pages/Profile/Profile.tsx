@@ -17,10 +17,15 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   IconButton,
+  Tooltip,
+  Skeleton,
+  CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
-  Person,
   Email,
   Phone,
   CreditCard,
@@ -35,10 +40,96 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { PageHeaderSkeleton } from '../../components/Skeletons/Skeletons';
+
+const maskPan = (pan?: string) =>
+  pan && pan.length >= 4 ? `${'X'.repeat(Math.max(pan.length - 4, 0))}${pan.slice(-4)}` : '—';
+
+const PageHeader: React.FC = () => (
+  <Box sx={{ mb: 3, minWidth: 0 }}>
+    <Typography
+      variant="h4"
+      sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}
+    >
+      Profile
+    </Typography>
+    <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+      Your personal details, preferences and account security
+    </Typography>
+  </Box>
+);
+
+const FieldsSkeleton: React.FC<{ count: number }> = ({ count }) => (
+  <Grid container spacing={{ xs: 2, md: 3 }}>
+    {Array.from({ length: count }).map((_, i) => (
+      <Grid item xs={12} sm={6} key={i}>
+        <Skeleton variant="rounded" height={56} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
+const ProfileSkeleton: React.FC = () => (
+  <Box>
+    <PageHeaderSkeleton withAction={false} />
+    <Grid container spacing={{ xs: 2, md: 3 }}>
+      <Grid item xs={12} md={4} xl={3}>
+        <Card>
+          <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+            <Skeleton variant="circular" width={80} height={80} sx={{ mb: 1 }} />
+            <Skeleton variant="text" sx={{ fontSize: '1.25rem', width: '60%' }} />
+            <Skeleton variant="text" sx={{ fontSize: '0.875rem', width: '40%' }} />
+            <Skeleton variant="rounded" width={64} height={24} sx={{ mb: 1 }} />
+            <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'center' }}>
+              {[0, 1, 2].map((i) => (
+                <Box key={i} sx={{ flex: 1, maxWidth: 90 }}>
+                  <Skeleton variant="circular" width={24} height={24} sx={{ mx: 'auto' }} />
+                  <Skeleton variant="text" sx={{ fontSize: '0.75rem' }} />
+                  <Skeleton variant="text" sx={{ fontSize: '0.875rem' }} />
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+        <Card sx={{ mt: { xs: 2, md: 3 } }}>
+          <CardContent>
+            <Skeleton variant="text" sx={{ fontSize: '1.25rem', width: 140, mb: 1 }} />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1 }}>
+                <Skeleton variant="circular" width={24} height={24} />
+                <Box sx={{ flex: 1 }}>
+                  <Skeleton variant="text" sx={{ fontSize: '0.875rem', width: '60%' }} />
+                  <Skeleton variant="text" sx={{ fontSize: '0.75rem', width: '85%' }} />
+                </Box>
+              </Box>
+            ))}
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={8} xl={9}>
+        <Card>
+          <CardContent>
+            <Skeleton variant="text" sx={{ fontSize: '1.25rem', width: 200, mb: 3 }} />
+            <FieldsSkeleton count={6} />
+          </CardContent>
+        </Card>
+        <Card sx={{ mt: { xs: 2, md: 3 } }}>
+          <CardContent>
+            <Skeleton variant="text" sx={{ fontSize: '1.25rem', width: 200, mb: 2 }} />
+            <FieldsSkeleton count={4} />
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  </Box>
+);
 
 const Profile: React.FC = () => {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile, changePassword, logout } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -62,12 +153,15 @@ const Profile: React.FC = () => {
   }, [user]);
 
   const handleUpdateProfile = async () => {
+    setSaving(true);
     try {
       await updateProfile(editForm);
       setIsEditing(false);
       toast.success('Profile updated successfully');
     } catch (error) {
       toast.error('Failed to update profile');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -77,17 +171,22 @@ const Profile: React.FC = () => {
       return;
     }
 
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters');
+      return;
+    }
+
     try {
-      // await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      // changePassword shows its own success/error toast.
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       setOpenPasswordDialog(false);
       setPasswordForm({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
-      toast.success('Password changed successfully');
-    } catch (error) {
-      toast.error('Failed to change password');
+    } catch {
+      // Keep the dialog open so the user can correct the current password.
     }
   };
 
@@ -105,64 +204,61 @@ const Profile: React.FC = () => {
   ];
 
   if (!user) {
-    return (
-      <Box>
-        <Typography variant="h4" gutterBottom>
-          Profile
-        </Typography>
-        <Typography>Loading...</Typography>
-      </Box>
-    );
+    return <ProfileSkeleton />;
   }
+
+  const prefs = user.preferences;
+  const plan = user.subscription?.plan ?? 'free';
+  const initials = `${user.firstName?.charAt(0) ?? ''}${user.lastName?.charAt(0) ?? ''}`.toUpperCase();
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Profile
-      </Typography>
+      <PageHeader />
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
+        <Grid item xs={12} md={4} xl={3}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Avatar
                 sx={{
                   width: 80,
                   height: 80,
-                  bgcolor: 'primary.main',
+                  background: 'linear-gradient(135deg, #6366f1 0%, var(--fh-info) 100%)',
+                  color: '#fff',
                   fontSize: '2rem',
+                  fontWeight: 700,
                   mx: 'auto',
                   mb: 2,
                 }}
               >
-                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                {initials || '?'}
               </Avatar>
-              
-              <Typography variant="h6" gutterBottom>
+
+              <Typography variant="h6" gutterBottom noWrap sx={{ color: 'var(--fh-text)', fontWeight: 700 }}>
                 {user.firstName} {user.lastName}
               </Typography>
-              
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+
+              <Typography variant="body2" color="text.secondary" gutterBottom noWrap>
                 @{user.username}
               </Typography>
-              
+
               <Chip
-                label={user.subscription.plan.toUpperCase()}
-                color={user.subscription.plan === 'premium' ? 'primary' : 'default'}
+                label={plan.toUpperCase()}
+                color={plan === 'premium' ? 'primary' : 'default'}
                 size="small"
                 sx={{ mb: 2 }}
               />
 
-              <Box display="flex" justifyContent="center" gap={1}>
+              <Box display="flex" justifyContent="center" gap={1} flexWrap="wrap">
                 {stats.map((stat, index) => (
-                  <Box key={index} sx={{ textAlign: 'center', px: 1 }}>
+                  <Box key={index} sx={{ textAlign: 'center', px: 1, flex: '1 1 80px', minWidth: 0 }}>
                     <Box color={`${stat.color}.main`} sx={{ fontSize: '1.5rem' }}>
                       {stat.icon}
                     </Box>
-                    <Typography variant="caption" display="block">
+                    <Typography variant="caption" display="block" color="text.secondary">
                       {stat.label}
                     </Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" fontWeight={600} noWrap>
                       {stat.value}
                     </Typography>
                   </Box>
@@ -171,24 +267,26 @@ const Profile: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 2 }}>
+          <Card sx={{ mt: { xs: 2, md: 3 } }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{ color: 'var(--fh-text)', fontWeight: 600 }}>
                 Quick Actions
               </Typography>
-              <List dense>
+              <List dense disablePadding>
                 {menuItems.map((item, index) => (
-                  <ListItem key={index} button>
-                    <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItem key={index} button sx={{ borderRadius: 2 }}>
+                    <ListItemIcon sx={{ color: 'var(--fh-text-3)', minWidth: 40 }}>{item.icon}</ListItemIcon>
                     <ListItemText
                       primary={item.label}
                       secondary={item.description}
+                      primaryTypographyProps={{ noWrap: true }}
+                      secondaryTypographyProps={{ noWrap: true }}
                     />
                   </ListItem>
                 ))}
-                <Divider />
-                <ListItem button onClick={logout}>
-                  <ListItemIcon><Logout color="error" /></ListItemIcon>
+                <Divider sx={{ my: 1 }} />
+                <ListItem button onClick={logout} sx={{ borderRadius: 2 }}>
+                  <ListItemIcon sx={{ minWidth: 40 }}><Logout color="error" /></ListItemIcon>
                   <ListItemText
                     primary="Logout"
                     primaryTypographyProps={{ color: 'error' }}
@@ -199,19 +297,21 @@ const Profile: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={8}>
+        <Grid item xs={12} md={8} xl={9}>
           <Card>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6" fontWeight={600}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" gap={1} mb={3}>
+                <Typography variant="h6" fontWeight={600} sx={{ color: 'var(--fh-text)' }}>
                   Personal Information
                 </Typography>
-                <IconButton onClick={() => setIsEditing(!isEditing)}>
-                  <Edit />
-                </IconButton>
+                <Tooltip title={isEditing ? 'Stop editing' : 'Edit profile'}>
+                  <IconButton onClick={() => setIsEditing(!isEditing)} color={isEditing ? 'primary' : 'default'}>
+                    <Edit />
+                  </IconButton>
+                </Tooltip>
               </Box>
 
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, md: 3 }}>
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
@@ -230,7 +330,7 @@ const Profile: React.FC = () => {
                     onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Username"
@@ -238,7 +338,7 @@ const Profile: React.FC = () => {
                     disabled
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Email"
@@ -265,7 +365,7 @@ const Profile: React.FC = () => {
                   <TextField
                     fullWidth
                     label="PAN Card"
-                    value="XXXXX1234X"
+                    value={maskPan(user.panCard)}
                     disabled
                     InputProps={{
                       startAdornment: <CreditCard sx={{ mr: 1, color: 'text.secondary' }} />,
@@ -275,15 +375,18 @@ const Profile: React.FC = () => {
               </Grid>
 
               {isEditing && (
-                <Box display="flex" gap={2} mt={3}>
+                <Box display="flex" gap={2} mt={3} flexWrap="wrap">
                   <Button
                     variant="contained"
                     onClick={handleUpdateProfile}
+                    disabled={saving}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
                   >
-                    Save Changes
+                    {saving ? 'Saving…' : 'Save Changes'}
                   </Button>
                   <Button
                     variant="outlined"
+                    disabled={saving}
                     onClick={() => {
                       setIsEditing(false);
                       setEditForm({
@@ -300,84 +403,88 @@ const Profile: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 2 }}>
+          <Card sx={{ mt: { xs: 2, md: 3 } }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
-                Account Preferences
-              </Typography>
-              
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2}>
+                <Typography variant="h6" fontWeight={600} sx={{ color: 'var(--fh-text)' }}>
+                  Account Preferences
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<Security />}
+                  onClick={() => setOpenPasswordDialog(true)}
+                >
+                  Change Password
+                </Button>
+              </Box>
+
+              <Grid container spacing={{ xs: 2, md: 3 }}>
+                <Grid item xs={12} sm={6} lg={3}>
                   <TextField
                     fullWidth
                     label="Default Market"
-                    value={user.preferences.defaultMarket === 'indian' ? 'Indian Market' : 'US Market'}
+                    value={prefs?.defaultMarket === 'indian' ? 'Indian Market' : prefs?.defaultMarket ? 'US Market' : '—'}
                     disabled
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6} lg={3}>
                   <TextField
                     fullWidth
                     label="Currency"
-                    value={user.preferences.currency}
+                    value={prefs?.currency ?? '—'}
                     disabled
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6} lg={3}>
                   <TextField
                     fullWidth
                     label="Risk Profile"
-                    value={user.preferences.riskProfile}
+                    value={prefs?.riskProfile ?? '—'}
                     disabled
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6} lg={3}>
                   <TextField
                     fullWidth
                     label="Timezone"
-                    value={user.preferences.timezone}
+                    value={prefs?.timezone ?? '—'}
                     disabled
                   />
                 </Grid>
               </Grid>
 
               <Box mt={3}>
-                <Typography variant="subtitle2" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{ color: 'var(--fh-text-3)' }}>
                   Notification Preferences
                 </Typography>
-                <Box display="flex" gap={2}>
-                  <Chip
-                    label={user.preferences.notifications.email ? 'Email ON' : 'Email OFF'}
-                    color={user.preferences.notifications.email ? 'success' : 'default'}
-                    size="small"
-                  />
-                  <Chip
-                    label={user.preferences.notifications.sms ? 'SMS ON' : 'SMS OFF'}
-                    color={user.preferences.notifications.sms ? 'success' : 'default'}
-                    size="small"
-                  />
-                  <Chip
-                    label={user.preferences.notifications.push ? 'Push ON' : 'Push OFF'}
-                    color={user.preferences.notifications.push ? 'success' : 'default'}
-                    size="small"
-                  />
+                <Box display="flex" gap={1} flexWrap="wrap">
+                  {([
+                    ['Email', prefs?.notifications?.email],
+                    ['SMS', prefs?.notifications?.sms],
+                    ['Push', prefs?.notifications?.push],
+                  ] as const).map(([label, on]) => (
+                    <Chip
+                      key={label}
+                      label={`${label} ${on ? 'ON' : 'OFF'}`}
+                      color={on ? 'success' : 'default'}
+                      variant={on ? 'filled' : 'outlined'}
+                      size="small"
+                    />
+                  ))}
                 </Box>
-              </Box>
-
-              <Box mt={3}>
-                <Button
-                  variant="outlined"
-                  onClick={() => setOpenPasswordDialog(true)}
-                >
-                  Change Password
-                </Button>
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      <Dialog open={openPasswordDialog} onClose={() => setOpenPasswordDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={openPasswordDialog}
+        onClose={() => setOpenPasswordDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>Change Password</DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} pt={1}>
@@ -385,6 +492,7 @@ const Profile: React.FC = () => {
               fullWidth
               label="Current Password"
               type="password"
+              autoComplete="current-password"
               value={passwordForm.currentPassword}
               onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
             />
@@ -392,6 +500,7 @@ const Profile: React.FC = () => {
               fullWidth
               label="New Password"
               type="password"
+              autoComplete="new-password"
               value={passwordForm.newPassword}
               onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
             />
@@ -399,17 +508,18 @@ const Profile: React.FC = () => {
               fullWidth
               label="Confirm New Password"
               type="password"
+              autoComplete="new-password"
               value={passwordForm.confirmPassword}
               onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
             />
-            <Box display="flex" gap={2}>
-              <Button onClick={() => setOpenPasswordDialog(false)}>Cancel</Button>
-              <Button variant="contained" onClick={handleChangePassword}>
-                Change Password
-              </Button>
-            </Box>
           </Box>
         </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpenPasswordDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleChangePassword}>
+            Change Password
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

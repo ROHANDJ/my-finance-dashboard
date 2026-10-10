@@ -67,7 +67,7 @@ const Register: React.FC = () => {
         onClick={() => setShowPassword(!showPassword)}
         edge="end"
         aria-label={showPassword ? 'Hide password' : 'Show password'}
-        sx={{ color: '#64748b' }}
+        sx={{ color: 'var(--fh-muted)' }}
       >
         {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
       </IconButton>
@@ -291,14 +291,14 @@ const Register: React.FC = () => {
           {isLoading ? <CircularProgress size={22} color="inherit" /> : 'Create Account'}
         </Button>
 
-        <Typography sx={{ textAlign: 'center', color: '#64748b', fontSize: '0.83rem', mb: 2 }}>
+        <Typography sx={{ textAlign: 'center', color: 'var(--fh-muted)', fontSize: '0.83rem', mb: 2 }}>
           Already have an account?{' '}
           <Link component={RouterLink} to="/login" sx={authLinkSx}>
             Sign in
           </Link>
         </Typography>
 
-        <Typography sx={{ textAlign: 'center', color: '#475569', fontSize: '0.72rem' }}>
+        <Typography sx={{ textAlign: 'center', color: 'var(--fh-muted-2)', fontSize: '0.72rem' }}>
           By creating an account, you agree to our Terms of Service and Privacy Policy
         </Typography>
       </Box>

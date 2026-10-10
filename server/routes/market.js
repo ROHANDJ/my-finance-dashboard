@@ -14,6 +14,21 @@ router.get('/indices', async (req, res) => {
   }
 });
 
+// GET /api/market/chart/:symbol?range=1d|5d|1mo|6mo|1y|5y — price history
+router.get('/chart/:symbol', auth, async (req, res) => {
+  const { symbol } = req.params;
+  const range = req.query.range || '1d';
+  if (!/^[\^A-Za-z0-9.=&-]{1,20}$/.test(symbol)) return res.status(400).json({ message: 'Invalid symbol' });
+  if (!market.CHART_RANGES[range]) return res.status(400).json({ message: 'Invalid range' });
+
+  try {
+    res.json(await market.getChart(symbol, range));
+  } catch (err) {
+    console.error('Chart error:', symbol, range, err.message);
+    res.status(502).json({ message: 'Could not load chart data' });
+  }
+});
+
 // GET /api/market/quote/:symbol?market=IN|US
 router.get('/quote/:symbol', auth, async (req, res) => {
   try {

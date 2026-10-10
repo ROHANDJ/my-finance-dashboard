@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { ShowChart } from '@mui/icons-material';
+import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import { ShowChart, LightMode, DarkMode } from '@mui/icons-material';
+import { useColorMode } from '../../contexts/ColorModeContext';
 
 interface AuthLayoutProps {
   title: string;
@@ -11,9 +12,9 @@ interface AuthLayoutProps {
 }
 
 const FEATURES = [
-  { label: 'Portfolio Tracking', color: '#6366f1' },
-  { label: 'Mutual Funds',       color: '#06b6d4' },
-  { label: 'Expense Manager',    color: '#10b981' },
+  { label: 'Portfolio Tracking', color: 'var(--fh-indigo)' },
+  { label: 'Mutual Funds',       color: 'var(--fh-info)' },
+  { label: 'Expense Manager',    color: 'var(--fh-up)' },
   { label: 'AI Chatbot',         color: '#8b5cf6' },
 ];
 
@@ -21,7 +22,7 @@ const Logo: React.FC<{ size: number }> = ({ size }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
     <Box sx={{
       width: size, height: size, borderRadius: size > 40 ? '12px' : '10px',
-      background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+      background: 'linear-gradient(135deg, #6366f1 0%, var(--fh-info) 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       boxShadow: '0 4px 24px rgba(99,102,241,0.5)',
     }}>
@@ -29,13 +30,35 @@ const Logo: React.FC<{ size: number }> = ({ size }) => (
     </Box>
     <Typography sx={{
       fontWeight: 800, fontSize: size > 40 ? '1.3rem' : '1rem',
-      background: 'linear-gradient(135deg, #818cf8, #06b6d4)',
+      background: 'linear-gradient(135deg, var(--fh-indigo), var(--fh-info))',
       WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
     }}>
       FinanceHub
     </Typography>
   </Box>
 );
+
+const ColorModeToggle: React.FC = () => {
+  const { mode, toggle } = useColorMode();
+  const label = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  return (
+    <Tooltip title={label}>
+      <IconButton
+        onClick={toggle}
+        aria-label={label}
+        sx={{
+          position: 'absolute', top: 16, right: 16, zIndex: 2,
+          color: 'var(--fh-text-3)',
+          background: 'var(--fh-surface)',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          '&:hover': { color: '#6366f1', background: 'rgba(99,102,241,0.1)' },
+        }}
+      >
+        {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
+      </IconButton>
+    </Tooltip>
+  );
+};
 
 const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth = 420, children }) => (
   <Box
@@ -45,11 +68,13 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth =
       width: '100%',
       minHeight: '100vh',
       display: 'flex',
-      background: '#060818',
+      background: 'var(--fh-bg)',
       position: 'relative',
       overflow: 'hidden',
     }}
   >
+    <ColorModeToggle />
+
     {/* Decorative blobs */}
     <Box sx={{
       position: 'absolute', top: '-20%', left: '-10%',
@@ -71,24 +96,25 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth =
         flex: 1,
         flexDirection: 'column',
         justifyContent: 'center',
+        alignItems: 'center',
         px: { md: 6, lg: 10 },
         position: 'relative',
         borderRight: '1px solid rgba(99, 102, 241, 0.08)',
       }}
     >
-      <Box sx={{ maxWidth: 520 }}>
+      <Box sx={{ width: '100%', maxWidth: 520 }}>
         <Box sx={{ mb: 6 }}><Logo size={44} /></Box>
 
-        <Typography variant="h2" sx={{ fontWeight: 800, color: '#e2e8f0', mb: 2, lineHeight: 1.15 }}>
+        <Typography variant="h2" sx={{ fontWeight: 800, color: 'var(--fh-text)', mb: 2, lineHeight: 1.15 }}>
           Your money,<br />
           <Box component="span" sx={{
-            background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+            background: 'linear-gradient(135deg, #6366f1, var(--fh-info))',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
             under control.
           </Box>
         </Typography>
-        <Typography sx={{ color: '#64748b', fontSize: '1rem', maxWidth: 420, lineHeight: 1.7 }}>
+        <Typography sx={{ color: 'var(--fh-muted)', fontSize: '1rem', maxWidth: 420, lineHeight: 1.7 }}>
           Track your portfolio, manage expenses, monitor mutual funds, and get AI-powered insights — all in one place.
         </Typography>
 
@@ -97,8 +123,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth =
             <Box key={f.label} sx={{
               px: 1.5, py: 0.6,
               borderRadius: '8px',
-              background: `${f.color}18`,
-              border: `1px solid ${f.color}33`,
+              background: `color-mix(in srgb, ${f.color} 9%, transparent)`,
+              border: `1px solid color-mix(in srgb, ${f.color} 20%, transparent)`,
               color: f.color,
               fontSize: '0.75rem',
               fontWeight: 700,
@@ -113,9 +139,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth =
     {/* Right panel — form */}
     <Box
       sx={{
-        flex: { xs: 1, md: '0 0 auto' },
-        width: { md: formMaxWidth + 96 },
-        maxWidth: '100%',
+        flex: 1,
+        minWidth: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -128,20 +153,20 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, formMaxWidth =
         sx={{
           width: '100%',
           maxWidth: formMaxWidth,
-          background: 'rgba(15, 23, 42, 0.8)',
+          background: 'var(--fh-surface)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(99, 102, 241, 0.2)',
           borderRadius: '20px',
           p: { xs: 3, md: 4 },
-          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          boxShadow: '0 24px 64px var(--fh-shadow)',
         }}
       >
         <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 3 }}><Logo size={36} /></Box>
 
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#e2e8f0', mb: 0.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--fh-text)', mb: 0.5 }}>
           {title}
         </Typography>
-        <Typography sx={{ color: '#64748b', fontSize: '0.85rem', mb: 3 }}>
+        <Typography sx={{ color: 'var(--fh-muted)', fontSize: '0.85rem', mb: 3 }}>
           {subtitle}
         </Typography>
 

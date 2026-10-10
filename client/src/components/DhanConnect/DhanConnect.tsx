@@ -3,7 +3,8 @@ import {
   Box, Button, Typography, CircularProgress, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableHead, TableBody, TableRow, TableCell,
-  Alert, IconButton, Tooltip, TextField, Link,
+  Alert, IconButton, Tooltip, TextField, Link, Skeleton, TableContainer,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
@@ -42,6 +43,8 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
   const [accessToken, setAccessToken]   = useState('');
   const [clientId, setClientId]         = useState('');
   const [error, setError]           = useState('');
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchStatus = async () => {
     try {
@@ -77,11 +80,15 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
   };
 
   const handleDisconnect = async () => {
-    await axios.post('/api/dhan/disconnect');
-    setStatus(s => s ? { ...s, connected: false } : s);
-    setHoldings([]);
-    setSummary(null);
-    toast.success('Disconnected from Dhan');
+    try {
+      await axios.post('/api/dhan/disconnect');
+      setStatus(s => s ? { ...s, connected: false } : s);
+      setHoldings([]);
+      setSummary(null);
+      toast.success('Disconnected from Dhan');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to disconnect from Dhan');
+    }
   };
 
   const handleFetchHoldings = async () => {
@@ -118,7 +125,26 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
     }
   };
 
-  if (!status) return null;
+  if (!status) {
+    return (
+      <Box
+        sx={{
+          p: 2.5, borderRadius: '14px', background: 'var(--fh-surface-2)',
+          border: '1px solid rgba(99,102,241,0.2)',
+          display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Skeleton variant="rounded" width={40} height={40} />
+          <Box>
+            <Skeleton variant="text" width={48} sx={{ fontSize: '0.9rem' }} />
+            <Skeleton variant="rounded" width={84} height={18} />
+          </Box>
+        </Box>
+        <Skeleton variant="rounded" width={130} height={32} sx={{ ml: 'auto' }} />
+      </Box>
+    );
+  }
 
   const fmt = (n: number) => n?.toLocaleString('en-IN', { maximumFractionDigits: 2 }) || '0';
   const fmtCr = (n: number) => {
@@ -139,7 +165,7 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         sx={{
           p: 2.5,
           borderRadius: '14px',
-          background: 'rgba(15, 23, 42, 0.6)',
+          background: 'var(--fh-surface-2)',
           border: status.connected
             ? '1px solid rgba(16,185,129,0.3)'
             : '1px solid rgba(99,102,241,0.2)',
@@ -159,17 +185,17 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
             border: status.connected ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(99,102,241,0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <AccountBalanceIcon sx={{ color: status.connected ? '#10b981' : '#6366f1', fontSize: '1.1rem' }} />
+            <AccountBalanceIcon sx={{ color: status.connected ? 'var(--fh-up)' : '#6366f1', fontSize: '1.1rem' }} />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: '#e2e8f0' }}>Dhan</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--fh-text)' }}>Dhan</Typography>
             <Chip
               size="small"
               label={status.connected ? 'Connected' : 'Not connected'}
               sx={{
                 height: 18, fontSize: '0.65rem', fontWeight: 700,
                 background: status.connected ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.1)',
-                color: status.connected ? '#10b981' : '#94a3b8',
+                color: status.connected ? 'var(--fh-up)' : 'var(--fh-text-3)',
                 border: status.connected ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(99,102,241,0.2)',
               }}
             />
@@ -180,14 +206,14 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         {status.connected && summary && (
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1 }}>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>PORTFOLIO VALUE</Typography>
-              <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: '#e2e8f0' }}>{fmtCr(summary.totalValue)}</Typography>
+              <Typography sx={{ fontSize: '0.65rem', color: 'var(--fh-muted)', fontWeight: 600 }}>PORTFOLIO VALUE</Typography>
+              <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--fh-text)' }}>{fmtCr(summary.totalValue)}</Typography>
             </Box>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>TOTAL P&L</Typography>
+              <Typography sx={{ fontSize: '0.65rem', color: 'var(--fh-muted)', fontWeight: 600 }}>TOTAL P&L</Typography>
               <Typography sx={{
                 fontSize: '0.88rem', fontWeight: 700,
-                color: summary.totalPnl >= 0 ? '#10b981' : '#f43f5e',
+                color: summary.totalPnl >= 0 ? 'var(--fh-up)' : 'var(--fh-down)',
               }}>
                 {summary.totalPnl >= 0 ? '+' : ''}{fmtCr(summary.totalPnl)} ({summary.pnlPercent >= 0 ? '+' : ''}{summary.pnlPercent?.toFixed(2)}%)
               </Typography>
@@ -196,7 +222,7 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         )}
 
         {/* Action buttons */}
-        <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+        <Box sx={{ display: 'flex', gap: 1, ml: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
           {status.connected ? (
             <>
               <Button
@@ -205,7 +231,7 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
                 startIcon={loading ? <CircularProgress size={12} /> : <TrendingUpIcon />}
                 onClick={handleFetchHoldings}
                 disabled={loading}
-                sx={{ fontSize: '0.75rem', borderColor: 'rgba(6,182,212,0.4)', color: '#06b6d4', '&:hover': { borderColor: '#06b6d4', background: 'rgba(6,182,212,0.08)' } }}
+                sx={{ fontSize: '0.75rem', borderColor: 'rgba(6,182,212,0.4)', color: 'var(--fh-info)', '&:hover': { borderColor: 'var(--fh-info)', background: 'rgba(6,182,212,0.08)' } }}
               >
                 View Holdings
               </Button>
@@ -222,7 +248,7 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
                 </Button>
               </Tooltip>
               <Tooltip title="Disconnect Dhan">
-                <IconButton size="small" onClick={handleDisconnect} sx={{ color: '#f43f5e' }}>
+                <IconButton size="small" onClick={handleDisconnect} sx={{ color: 'var(--fh-down)' }}>
                   <LinkOffIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -247,9 +273,10 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         onClose={() => setShowConnect(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={fullScreen}
         PaperProps={{
           sx: {
-            background: 'rgba(9, 15, 35, 0.98)',
+            background: 'var(--fh-dialog)',
             border: '1px solid rgba(99,102,241,0.2)',
             backdropFilter: 'blur(20px)',
           }
@@ -264,10 +291,10 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         <DialogContent sx={{ pt: 2.5 }}>
           <Alert
             severity="info"
-            sx={{ mb: 2.5, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: '#e2e8f0' }}
+            sx={{ mb: 2.5, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', color: 'var(--fh-text)' }}
           >
             Generate an access token from{' '}
-            <Link href="https://web.dhan.co/" target="_blank" rel="noopener" sx={{ color: '#06b6d4' }}>
+            <Link href="https://web.dhan.co/" target="_blank" rel="noopener" sx={{ color: 'var(--fh-info)' }}>
               Dhan Web
             </Link>{' '}
             → My Profile → DhanHQ Trading APIs, then paste it below with your Client ID.
@@ -291,8 +318,8 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
             placeholder="Paste your Dhan access token (JWT)"
           />
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid rgba(99,102,241,0.1)', px: 3, py: 2 }}>
-          <Button onClick={() => setShowConnect(false)} sx={{ color: '#64748b' }}>Cancel</Button>
+        <DialogActions sx={{ borderTop: '1px solid rgba(99,102,241,0.1)', px: { xs: 2, sm: 3 }, py: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={() => setShowConnect(false)} sx={{ color: 'var(--fh-muted)' }}>Cancel</Button>
           <Button
             variant="contained"
             startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <LinkIcon />}
@@ -310,9 +337,10 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
         onClose={() => setShowHoldings(false)}
         maxWidth="md"
         fullWidth
+        fullScreen={fullScreen}
         PaperProps={{
           sx: {
-            background: 'rgba(9, 15, 35, 0.98)',
+            background: 'var(--fh-dialog)',
             border: '1px solid rgba(99,102,241,0.2)',
             backdropFilter: 'blur(20px)',
           }
@@ -324,27 +352,28 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
             <Typography fontWeight={700}>Dhan Holdings ({holdings.length})</Typography>
           </Box>
           {summary && (
-            <Box sx={{ display: 'flex', gap: 3, mt: 1 }}>
-              <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                Value: <strong style={{ color: '#e2e8f0' }}>{fmtCr(summary.totalValue)}</strong>
+            <Box sx={{ display: 'flex', gap: { xs: 1.5, sm: 3 }, mt: 1, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: '0.8rem', color: 'var(--fh-text-3)' }}>
+                Value: <strong style={{ color: 'var(--fh-text)' }}>{fmtCr(summary.totalValue)}</strong>
               </Typography>
-              <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                P&L: <strong style={{ color: summary.totalPnl >= 0 ? '#10b981' : '#f43f5e' }}>
+              <Typography sx={{ fontSize: '0.8rem', color: 'var(--fh-text-3)' }}>
+                P&L: <strong style={{ color: summary.totalPnl >= 0 ? 'var(--fh-up)' : 'var(--fh-down)' }}>
                   {summary.totalPnl >= 0 ? '+' : ''}{fmtCr(summary.totalPnl)}
                 </strong>
               </Typography>
-              <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                Invested: <strong style={{ color: '#e2e8f0' }}>{fmtCr(summary.invested)}</strong>
+              <Typography sx={{ fontSize: '0.8rem', color: 'var(--fh-text-3)' }}>
+                Invested: <strong style={{ color: 'var(--fh-text)' }}>{fmtCr(summary.invested)}</strong>
               </Typography>
             </Box>
           )}
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
-          <Table size="small">
+          <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table size="small" sx={{ minWidth: 640 }}>
             <TableHead>
               <TableRow>
                 {['Symbol', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Day Chg', 'Value'].map(h => (
-                  <TableCell key={h}>{h}</TableCell>
+                  <TableCell key={h} sx={{ whiteSpace: 'nowrap', color: 'var(--fh-text-3)', fontWeight: 600 }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
@@ -352,31 +381,32 @@ const DhanConnect: React.FC<Props> = ({ onSynced }) => {
               {holdings.map(h => (
                 <TableRow key={h.symbol}>
                   <TableCell>
-                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>{h.symbol}</Typography>
-                    <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{h.exchange}</Typography>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--fh-text)' }}>{h.symbol}</Typography>
+                    <Typography sx={{ fontSize: '0.68rem', color: 'var(--fh-muted)' }}>{h.exchange}</Typography>
                   </TableCell>
-                  <TableCell sx={{ color: '#e2e8f0' }}>{h.quantity}</TableCell>
-                  <TableCell sx={{ color: '#94a3b8' }}>₹{fmt(h.averagePrice)}</TableCell>
-                  <TableCell sx={{ color: '#e2e8f0', fontWeight: 600 }}>₹{fmt(h.currentPrice)}</TableCell>
+                  <TableCell sx={{ color: 'var(--fh-text)' }}>{h.quantity}</TableCell>
+                  <TableCell sx={{ color: 'var(--fh-text-3)' }}>₹{fmt(h.averagePrice)}</TableCell>
+                  <TableCell sx={{ color: 'var(--fh-text)', fontWeight: 600 }}>₹{fmt(h.currentPrice)}</TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: h.pnl >= 0 ? '#10b981' : '#f43f5e' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: h.pnl >= 0 ? 'var(--fh-up)' : 'var(--fh-down)' }}>
                       {h.pnl >= 0 ? <TrendingUpIcon sx={{ fontSize: '0.8rem' }} /> : <TrendingDownIcon sx={{ fontSize: '0.8rem' }} />}
                       <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>
                         {h.pnl >= 0 ? '+' : ''}₹{fmt(h.pnl)}
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell sx={{ color: h.dayChange >= 0 ? '#10b981' : '#f43f5e', fontSize: '0.78rem', fontWeight: 600 }}>
+                  <TableCell sx={{ color: h.dayChange >= 0 ? 'var(--fh-up)' : 'var(--fh-down)', fontSize: '0.78rem', fontWeight: 600 }}>
                     {h.dayChangePercent >= 0 ? '+' : ''}{h.dayChangePercent?.toFixed(2)}%
                   </TableCell>
-                  <TableCell sx={{ color: '#e2e8f0', fontWeight: 600 }}>₹{fmt(h.value)}</TableCell>
+                  <TableCell sx={{ color: 'var(--fh-text)', fontWeight: 600 }}>₹{fmt(h.value)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          </TableContainer>
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid rgba(99,102,241,0.1)', px: 3, py: 2 }}>
-          <Button onClick={() => setShowHoldings(false)} sx={{ color: '#64748b' }}>Close</Button>
+        <DialogActions sx={{ borderTop: '1px solid rgba(99,102,241,0.1)', px: { xs: 2, sm: 3 }, py: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={() => setShowHoldings(false)} sx={{ color: 'var(--fh-muted)' }}>Close</Button>
           <Button
             variant="contained"
             startIcon={syncing ? <CircularProgress size={14} color="inherit" /> : <SyncIcon />}

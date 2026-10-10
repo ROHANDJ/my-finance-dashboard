@@ -1,5 +1,77 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+/* ---------------------------------------------------------------------------
+   Colour tokens. ColorModeContext sets <html data-theme="dark|light">.
+   Components use var(--fh-*) so both modes come from one source.
+   Light-mode accents are darker shades so text keeps >= 4.5:1 on white.
+   --------------------------------------------------------------------------- */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --fh-bg: #060818;
+  --fh-bg-gradient: linear-gradient(135deg, #060818 0%, #0d1117 50%, #060818 100%);
+  --fh-sidebar: linear-gradient(180deg, #070c1f 0%, #0b1128 60%, #07101e 100%);
+  --fh-appbar: rgba(6, 8, 24, 0.85);
+  --fh-surface: rgba(15, 23, 42, 0.8);
+  --fh-surface-2: rgba(15, 23, 42, 0.55);
+  --fh-paper: rgba(15, 23, 42, 0.95);
+  --fh-paper-solid: #0f172a;
+  --fh-dialog: #0a0f23;
+  --fh-table-head: #111a2e;
+  --fh-input: rgba(15, 23, 42, 0.6);
+
+  --fh-text: #e2e8f0;
+  --fh-text-2: #cbd5e1;
+  --fh-text-3: #94a3b8;
+  --fh-muted: #64748b;
+  --fh-muted-2: #475569;
+  --fh-faint: #334155;
+
+  --fh-up: #10b981;
+  --fh-down: #f43f5e;
+  --fh-warn: #f59e0b;
+  --fh-info: #06b6d4;
+  --fh-indigo: #818cf8;
+  --fh-indigo-soft: #c7d2fe;
+  --fh-amber-text: #fcd34d;
+
+  --fh-shadow: rgba(0, 0, 0, 0.45);
+  --fh-mesh-opacity: 1;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --fh-bg: #f4f6fb;
+  --fh-bg-gradient: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f8fafc 100%);
+  --fh-sidebar: #ffffff;
+  --fh-appbar: rgba(255, 255, 255, 0.85);
+  --fh-surface: #ffffff;
+  --fh-surface-2: #f8fafc;
+  --fh-paper: #ffffff;
+  --fh-paper-solid: #ffffff;
+  --fh-dialog: #ffffff;
+  --fh-table-head: #f1f5f9;
+  --fh-input: #ffffff;
+
+  --fh-text: #0f172a;
+  --fh-text-2: #334155;
+  --fh-text-3: #475569;
+  --fh-muted: #64748b;
+  --fh-muted-2: #94a3b8;
+  --fh-faint: #cbd5e1;
+
+  --fh-up: #047857;
+  --fh-down: #e11d48;
+  --fh-warn: #b45309;
+  --fh-info: #0e7490;
+  --fh-indigo: #4f46e5;
+  --fh-indigo-soft: #4338ca;
+  --fh-amber-text: #92400e;
+
+  --fh-shadow: rgba(15, 23, 42, 0.08);
+  --fh-mesh-opacity: 0.6;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -11,9 +83,10 @@ body {
   font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #060818;
-  color: #e2e8f0;
+  background: var(--fh-bg);
+  color: var(--fh-text);
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Animated mesh background */
@@ -27,11 +100,12 @@ body::before {
     radial-gradient(ellipse 40% 30% at 50% 50%, rgba(139, 92, 246, 0.04) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
+  opacity: var(--fh-mesh-opacity);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: rgba(6, 8, 24, 0.5); }
+::-webkit-scrollbar-track { background: var(--fh-surface-2); }
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, #6366f1, #8b5cf6);
   border-radius: 3px;
@@ -45,15 +119,15 @@ body::before {
 
 /* Stat number glow effect */
 .neon-text {
-  color: #06b6d4;
+  color: var(--fh-info);
   text-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
 }
 .neon-green {
-  color: #10b981;
+  color: var(--fh-up);
   text-shadow: 0 0 16px rgba(16, 185, 129, 0.5);
 }
 .neon-red {
-  color: #f43f5e;
+  color: var(--fh-down);
   text-shadow: 0 0 16px rgba(244, 63, 94, 0.5);
 }
 .neon-purple {
@@ -63,17 +137,17 @@ body::before {
 
 /* Stock price colors */
 .stock-price-up {
-  color: #10b981;
+  color: var(--fh-up);
   font-weight: 700;
   text-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
 }
 .stock-price-down {
-  color: #f43f5e;
+  color: var(--fh-down);
   font-weight: 700;
   text-shadow: 0 0 12px rgba(244, 63, 94, 0.4);
 }
 .stock-price-neutral {
-  color: #94a3b8;
+  color: var(--fh-text-3);
   font-weight: 600;
 }
 
@@ -100,7 +174,7 @@ body::before {
 
 /* Glass card utility */
 .glass-card {
-  background: rgba(15, 23, 42, 0.7) !important;
+  background: var(--fh-surface) !important;
   backdrop-filter: blur(16px);
   border: 1px solid rgba(99, 102, 241, 0.15) !important;
 }
@@ -144,6 +218,21 @@ body::before {
   box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2) !important;
 }
 
+/* Light mode: the tinted card is too pale for its white text — use the solid brand gradient. */
+[data-theme='light'] .portfolio-summary-card {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  border-color: transparent !important;
+  /* Re-point tokens inside the card so all its text stays light on indigo. */
+  --fh-text: #ffffff;
+  --fh-text-2: #eef2ff;
+  --fh-text-3: #e0e7ff;
+  --fh-muted: #c7d2fe;
+  --fh-indigo-soft: #e0e7ff;
+  --fh-up: #a7f3d0;
+  --fh-down: #fecdd3;
+}
+
+
 /* Chatbot */
 .chatbot-container {
   position: fixed;
@@ -170,7 +259,7 @@ body::before {
 /* Glow badge for positive/negative numbers */
 .badge-up {
   background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  color: var(--fh-up);
   border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: 6px;
   padding: 2px 8px;
@@ -179,7 +268,7 @@ body::before {
 }
 .badge-down {
   background: rgba(244, 63, 94, 0.15);
-  color: #f43f5e;
+  color: var(--fh-down);
   border: 1px solid rgba(244, 63, 94, 0.3);
   border-radius: 6px;
   padding: 2px 8px;
@@ -193,7 +282,7 @@ body::before {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(9, 15, 35, 0.98);
+  background: var(--fh-dialog);
   border-top: 1px solid rgba(99, 102, 241, 0.2);
   padding: 8px 0;
   z-index: 1000;

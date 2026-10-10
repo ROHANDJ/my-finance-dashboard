@@ -15,21 +15,20 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Pagination,
-  LinearProgress,
+  Skeleton,
 } from '@mui/material';
 import {
   Search,
   TrendingUp,
   TrendingDown,
-  Add,
   Refresh,
   Star,
   StarBorder,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { ListSkeleton } from '../../components/Skeletons/Skeletons';
 
 interface Stock {
   symbol: string;
@@ -42,6 +41,17 @@ interface Stock {
   sector?: string;
   country: string;
 }
+
+const headCellSx = {
+  background: 'var(--fh-table-head)',
+  color: 'var(--fh-text-2)',
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid rgba(148, 163, 184, 0.18)',
+} as const;
+
+/** Low-value columns hidden on phones. */
+const hideOnXs = { display: { xs: 'none', sm: 'table-cell' } } as const;
 
 const Stocks: React.FC = () => {
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -122,190 +132,223 @@ const Stocks: React.FC = () => {
   };
 
   const displayStocks = stocks;
+  const gainers = displayStocks.filter(stock => stock.change > 0).slice(0, 3);
+  const losers = displayStocks.filter(stock => stock.change < 0).slice(0, 3);
+
+  const renderMovers = (title: string, list: Stock[], positive: boolean) => (
+    isLoading ? (
+      <ListSkeleton rows={3} />
+    ) : (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={1}>
+            {positive ? <TrendingUp sx={{ color: 'var(--fh-up)' }} /> : <TrendingDown sx={{ color: 'var(--fh-down)' }} />}
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--fh-text)' }}>{title}</Typography>
+          </Box>
+          {list.length === 0 ? (
+            <Typography variant="body2" sx={{ color: 'var(--fh-muted)', py: 1 }}>No data</Typography>
+          ) : list.map((stock) => (
+            <Box
+              key={stock.symbol}
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              gap={2}
+              sx={{ py: 1, borderBottom: '1px solid rgba(148,163,184,0.08)', '&:last-of-type': { borderBottom: 'none' } }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--fh-text)' }}>{stock.symbol}</Typography>
+                <Typography variant="caption" noWrap component="div" sx={{ color: 'var(--fh-muted)' }}>{stock.name}</Typography>
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: positive ? 'var(--fh-up)' : 'var(--fh-down)', flexShrink: 0 }}>
+                {positive ? '+' : ''}{stock.changePercent.toFixed(2)}%
+              </Typography>
+            </Box>
+          ))}
+        </CardContent>
+      </Card>
+    )
+  );
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>
-          Stocks
-        </Typography>
-        <Box display="flex" gap={2}>
+      <Box
+        sx={{
+          display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 2, mb: { xs: 2, md: 3 },
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            Stocks
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+            Search stocks, track movers and build your watchlist
+          </Typography>
+        </Box>
+        <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
           <Chip
             label={market === 'indian' ? 'Indian Market' : 'US Market'}
             color={market === 'indian' ? 'warning' : 'primary'}
             onClick={() => setMarket(market === 'indian' ? 'us' : 'indian')}
             clickable
           />
-          <IconButton onClick={fetchStocks} color="primary">
+          <IconButton onClick={fetchStocks} color="primary" disabled={isLoading} aria-label="Refresh">
             <Refresh />
           </IconButton>
         </Box>
       </Box>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Box display="flex" gap={2} mb={3}>
+              <Box display="flex" gap={{ xs: 1.5, sm: 2 }} mb={3} flexDirection={{ xs: 'column', sm: 'row' }}>
                 <TextField
                   fullWidth
+                  size="small"
                   placeholder="Search stocks..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   InputProps={{
-                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
+                    startAdornment: <Search sx={{ mr: 1, color: 'var(--fh-muted)' }} />,
                   }}
                 />
-                <Button variant="contained" onClick={handleSearch}>
+                <Button variant="contained" onClick={handleSearch} disabled={isLoading} sx={{ flexShrink: 0, px: 3 }}>
                   Search
                 </Button>
               </Box>
 
-              {isLoading ? (
-                <LinearProgress />
-              ) : (
-                <TableContainer component={Paper} variant="outlined">
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Name</TableCell>
-                        <TableCell align="right">Price</TableCell>
-                        <TableCell align="right">Change</TableCell>
-                        <TableCell align="right">Market Cap</TableCell>
-                        <TableCell align="right">Volume</TableCell>
-                        <TableCell align="center">Watchlist</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {displayStocks.map((stock) => (
-                        <TableRow key={stock.symbol} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={600}>
-                              {stock.symbol}
-                            </Typography>
-                            <Chip
-                              label={stock.country === 'IN' ? 'IN' : 'US'}
-                              size="small"
-                              color={stock.country === 'IN' ? 'warning' : 'primary'}
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {stock.name}
-                            </Typography>
-                            {stock.sector && (
-                              <Typography variant="caption" color="text.secondary">
-                                {stock.sector}
-                              </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight={600}>
-                              {formatCurrency(stock.currentPrice, stock.country === 'IN' ? 'INR' : 'USD')}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                              {stock.change >= 0 ? (
-                                <TrendingUp color="success" fontSize="small" />
-                              ) : (
-                                <TrendingDown color="error" fontSize="small" />
-                              )}
-                              <Typography
-                                variant="body2"
-                                fontWeight={600}
-                                color={stock.change >= 0 ? 'success.main' : 'error.main'}
-                              >
-                                {stock.change >= 0 ? '+' : ''}
-                                {stock.changePercent.toFixed(2)}%
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
-                              {formatMarketCap(stock.marketCap)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
-                              {formatMarketCap(stock.volume)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              onClick={() => toggleWatchlist(stock.symbol)}
-                              color="primary"
-                              size="small"
-                            >
-                              {watchlist.includes(stock.symbol) ? (
-                                <Star />
-                              ) : (
-                                <StarBorder />
-                              )}
-                            </IconButton>
-                          </TableCell>
+              <TableContainer
+                sx={{ overflowX: 'auto', borderRadius: 2, border: '1px solid rgba(148, 163, 184, 0.12)' }}
+              >
+                <Table size="small" sx={{ minWidth: { xs: 420, sm: 680 } }}>
+                  <TableHead>
+                    <TableRow sx={{ '&:hover': { background: 'transparent' } }}>
+                      <TableCell sx={headCellSx}>Symbol</TableCell>
+                      <TableCell sx={headCellSx}>Name</TableCell>
+                      <TableCell sx={headCellSx} align="right">Price</TableCell>
+                      <TableCell sx={headCellSx} align="right">Change</TableCell>
+                      <TableCell sx={{ ...headCellSx, ...hideOnXs }} align="right">Market Cap</TableCell>
+                      <TableCell sx={{ ...headCellSx, ...hideOnXs }} align="right">Volume</TableCell>
+                      <TableCell sx={headCellSx} align="center">Watchlist</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {isLoading ? (
+                      Array.from({ length: 8 }).map((_, r) => (
+                        <TableRow key={r}>
+                          {Array.from({ length: 7 }).map((__, c) => (
+                            <TableCell key={c} sx={c === 4 || c === 5 ? hideOnXs : undefined}>
+                              <Skeleton variant="text" sx={{ fontSize: '0.9rem', width: c === 1 ? '80%' : '60%', ml: c >= 2 && c <= 5 ? 'auto' : 0 }} />
+                              {c < 2 && <Skeleton variant="text" sx={{ fontSize: '0.7rem', width: '40%' }} />}
+                            </TableCell>
+                          ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      ))
+                    ) : displayStocks.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'var(--fh-text-3)' }}>
+                          No stocks found
+                        </TableCell>
+                      </TableRow>
+                    ) : displayStocks.map((stock) => (
+                      <TableRow key={stock.symbol} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--fh-text)' }}>
+                            {stock.symbol}
+                          </Typography>
+                          <Chip
+                            label={stock.country === 'IN' ? 'IN' : 'US'}
+                            size="small"
+                            color={stock.country === 'IN' ? 'warning' : 'primary'}
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem', mt: 0.5 }}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 260 }}>
+                          <Typography variant="body2" noWrap sx={{ color: 'var(--fh-text-2)' }} title={stock.name}>
+                            {stock.name}
+                          </Typography>
+                          {stock.sector && (
+                            <Typography variant="caption" noWrap component="div" sx={{ color: 'var(--fh-muted)' }}>
+                              {stock.sector}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--fh-text)' }}>
+                            {formatCurrency(stock.currentPrice, stock.country === 'IN' ? 'INR' : 'USD')}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                            {stock.change >= 0 ? (
+                              <TrendingUp sx={{ color: 'var(--fh-up)' }} fontSize="small" />
+                            ) : (
+                              <TrendingDown sx={{ color: 'var(--fh-down)' }} fontSize="small" />
+                            )}
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 600, color: stock.change >= 0 ? 'var(--fh-up)' : 'var(--fh-down)', whiteSpace: 'nowrap' }}
+                            >
+                              {stock.change >= 0 ? '+' : ''}
+                              {stock.changePercent.toFixed(2)}%
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right" sx={hideOnXs}>
+                          <Typography variant="body2" sx={{ color: 'var(--fh-text-2)' }}>
+                            {formatMarketCap(stock.marketCap)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={hideOnXs}>
+                          <Typography variant="body2" sx={{ color: 'var(--fh-text-2)' }}>
+                            {formatMarketCap(stock.volume)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <IconButton
+                            onClick={() => toggleWatchlist(stock.symbol)}
+                            size="small"
+                            sx={{ color: watchlist.includes(stock.symbol) ? 'var(--fh-warn)' : 'var(--fh-muted)' }}
+                            aria-label="Toggle watchlist"
+                          >
+                            {watchlist.includes(stock.symbol) ? (
+                              <Star fontSize="small" />
+                            ) : (
+                              <StarBorder fontSize="small" />
+                            )}
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {totalPages > 1 && (
+                <Box display="flex" justifyContent="center" mt={3}>
+                  <Pagination
+                    count={totalPages}
+                    page={page}
+                    onChange={(_, newPage) => setPage(newPage)}
+                    color="primary"
+                    size="small"
+                  />
+                </Box>
               )}
-
-              <Box display="flex" justifyContent="center" mt={3}>
-                <Pagination
-                  count={totalPages}
-                  page={page}
-                  onChange={(_, newPage) => setPage(newPage)}
-                  color="primary"
-                />
-              </Box>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
-                Top Gainers
-              </Typography>
-              {displayStocks
-                .filter(stock => stock.change > 0)
-                .slice(0, 3)
-                .map((stock) => (
-                  <Box key={stock.symbol} display="flex" justifyContent="space-between" p={1}>
-                    <Typography variant="body2">{stock.symbol}</Typography>
-                    <Typography variant="body2" color="success.main">
-                      +{stock.changePercent.toFixed(2)}%
-                    </Typography>
-                  </Box>
-                ))}
-            </CardContent>
-          </Card>
+          {renderMovers('Top Gainers', gainers, true)}
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
-                Top Losers
-              </Typography>
-              {displayStocks
-                .filter(stock => stock.change < 0)
-                .slice(0, 3)
-                .map((stock) => (
-                  <Box key={stock.symbol} display="flex" justifyContent="space-between" p={1}>
-                    <Typography variant="body2">{stock.symbol}</Typography>
-                    <Typography variant="body2" color="error.main">
-                      {stock.changePercent.toFixed(2)}%
-                    </Typography>
-                  </Box>
-                ))}
-            </CardContent>
-          </Card>
+          {renderMovers('Top Losers', losers, false)}
         </Grid>
       </Grid>
     </Box>

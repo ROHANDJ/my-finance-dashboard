@@ -15,12 +15,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  LinearProgress,
+  CircularProgress,
+  Skeleton,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Alert,
   Tabs,
   Tab,
 } from '@mui/material';
@@ -36,6 +36,7 @@ import {
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { StatCardsSkeleton } from '../../components/Skeletons/Skeletons';
 
 interface Order {
   orderId: string;
@@ -88,6 +89,51 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   </div>
 );
 
+const PageHeader: React.FC<{ actions?: React.ReactNode }> = ({ actions }) => (
+  <Box
+    sx={{
+      display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: 2, mb: { xs: 2, md: 3 },
+    }}
+  >
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+        Trading
+      </Typography>
+      <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+        Live orders, positions and holdings from your Dhan account
+      </Typography>
+    </Box>
+    {actions && <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>{actions}</Box>}
+  </Box>
+);
+
+const TradingSkeleton: React.FC = () => (
+  <Box>
+    <Box sx={{ display: 'flex', gap: 3, mb: 3, borderBottom: '1px solid rgba(148,163,184,0.12)', pb: 1.5, overflow: 'hidden' }}>
+      {[90, 90, 110, 100, 60].map((w, i) => <Skeleton key={i} variant="text" width={w} sx={{ fontSize: '0.95rem', flexShrink: 0 }} />)}
+    </Box>
+    <StatCardsSkeleton count={4} />
+    <Card>
+      <CardContent>
+        <Skeleton variant="text" sx={{ fontSize: '1.2rem', width: 140, mb: 2 }} />
+        <Grid container spacing={2}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Grid item xs={6} sm={3} md={2} key={i}>
+              <Skeleton variant="rounded" height={40} />
+            </Grid>
+          ))}
+          <Grid item xs={12} sm={6} md={3}>
+            <Skeleton variant="rounded" height={40} />
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  </Box>
+);
+
+const headCellSx = { whiteSpace: 'nowrap', color: 'var(--fh-text-3)', fontWeight: 600 } as const;
+
 const Trading: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders]       = useState<Order[]>([]);
@@ -97,6 +143,8 @@ const Trading: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [tabValue, setTabValue]   = useState(0);
   const [needsDhan, setNeedsDhan] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [placing, setPlacing]     = useState<'BUY' | 'SELL' | null>(null);
 
   const [orderForm, setOrderForm] = useState({
     symbol: '',
@@ -109,12 +157,17 @@ const Trading: React.FC = () => {
     product: 'CNC' as string,
   });
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchAll = async () => {
-    setIsLoading(true);
+  const fetchAll = async (initial = false) => {
+    if (initial) setIsLoading(true); else setRefreshing(true);
     setNeedsDhan(false);
     try {
+      // Check the broker connection first so we don't fire four requests that
+      // are guaranteed to 401 (and flood the console) when Dhan isn't linked.
+      const statusRes = await axios.get('/api/dhan/status');
+      if (!statusRes.data?.connected) { setNeedsDhan(true); return; }
+
       const [ordersRes, positionsRes, holdingsRes, fundsRes] = await Promise.allSettled([
         axios.get('/api/trading/orders'),
         axios.get('/api/trading/positions'),
@@ -126,6 +179,7 @@ const Trading: React.FC = () => {
       const anyNeedsAuth = [ordersRes, positionsRes, holdingsRes, fundsRes].some(r =>
         r.status === 'rejected' && (r.reason?.response?.data?.needsAuth || r.reason?.response?.status === 401)
       );
+      // Fallback: the token may have expired since the status check.
       if (anyNeedsAuth) { setNeedsDhan(true); return; }
 
       if (ordersRes.status === 'fulfilled')    setOrders(ordersRes.value.data.orders || []);
@@ -136,6 +190,7 @@ const Trading: React.FC = () => {
       setNeedsDhan(true);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -144,6 +199,7 @@ const Trading: React.FC = () => {
       toast.error('Symbol and quantity are required');
       return;
     }
+    setPlacing(side);
     try {
       await axios.post('/api/trading/order', {
         ...orderForm,
@@ -157,6 +213,8 @@ const Trading: React.FC = () => {
       fetchAll();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to place order');
+    } finally {
+      setPlacing(null);
     }
   };
 
@@ -180,12 +238,12 @@ const Trading: React.FC = () => {
   if (!isLoading && needsDhan) {
     return (
       <Box>
-        <Typography variant="h4" fontWeight={600} mb={3}>Trading</Typography>
-        <Card sx={{ textAlign: 'center', py: 8 }}>
+        <PageHeader />
+        <Card sx={{ textAlign: 'center', py: { xs: 4, md: 8 } }}>
           <CardContent>
-            <LinkOff sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>Dhan Not Connected</Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
+            <LinkOff sx={{ fontSize: 64, color: 'var(--fh-muted)', mb: 2 }} />
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: 'var(--fh-text)' }}>Dhan Not Connected</Typography>
+            <Typography variant="body2" sx={{ color: 'var(--fh-text-3)', mb: 3, maxWidth: 480, mx: 'auto' }}>
               Connect your Dhan account to view live orders, positions, holdings and place trades.
             </Typography>
             <Button
@@ -204,24 +262,33 @@ const Trading: React.FC = () => {
   if (isLoading) {
     return (
       <Box>
-        <Typography variant="h4" fontWeight={600} mb={3}>Trading</Typography>
-        <LinearProgress />
+        <PageHeader actions={<Skeleton variant="rounded" width={130} height={24} />} />
+        <TradingSkeleton />
       </Box>
     );
   }
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>Trading</Typography>
-        <Box display="flex" gap={2} alignItems="center">
-          <Chip label="Dhan Connected" color="success" variant="outlined" size="small" />
-          <IconButton onClick={fetchAll} color="primary"><Refresh /></IconButton>
-        </Box>
-      </Box>
+      <PageHeader
+        actions={
+          <>
+            <Chip label="Dhan Connected" color="success" variant="outlined" size="small" />
+            <IconButton onClick={() => fetchAll()} color="primary" disabled={refreshing} aria-label="Refresh">
+              {refreshing ? <CircularProgress size={20} /> : <Refresh />}
+            </IconButton>
+          </>
+        }
+      />
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 2, md: 3 } }}>
+        <Tabs
+          value={tabValue}
+          onChange={(_, v) => setTabValue(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           <Tab label="Dashboard" />
           <Tab label={`Orders (${orders.length})`} />
           <Tab label={`Positions (${positions.length})`} />
@@ -232,7 +299,7 @@ const Trading: React.FC = () => {
 
       {/* ── Dashboard ──────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={0}>
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, md: 3 }}>
           {funds && (
             <>
               <Grid item xs={12} sm={6} lg={3}>
@@ -356,14 +423,16 @@ const Trading: React.FC = () => {
                     <Box display="flex" gap={1}>
                       <Button
                         variant="contained" color="success" fullWidth
-                        startIcon={<Add />}
+                        startIcon={placing === 'BUY' ? <CircularProgress size={16} color="inherit" /> : <Add />}
+                        disabled={placing !== null}
                         onClick={() => placeOrder('BUY')}
                       >
                         BUY
                       </Button>
                       <Button
                         variant="contained" color="error" fullWidth
-                        startIcon={<Remove />}
+                        startIcon={placing === 'SELL' ? <CircularProgress size={16} color="inherit" /> : <Remove />}
+                        disabled={placing !== null}
                         onClick={() => placeOrder('SELL')}
                       >
                         SELL
@@ -385,29 +454,29 @@ const Trading: React.FC = () => {
             {orders.length === 0 ? (
               <Typography color="text.secondary" textAlign="center" py={4}>No orders today</Typography>
             ) : (
-              <TableContainer>
-                <Table size="small">
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 640 }}>
                   <TableHead>
                     <TableRow>
                       {['Order ID', 'Symbol', 'Side', 'Type', 'Qty', 'Price', 'Filled', 'Status', 'Action'].map(h => (
-                        <TableCell key={h}>{h}</TableCell>
+                        <TableCell key={h} sx={headCellSx}>{h}</TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {orders.map(o => (
                       <TableRow key={o.orderId} hover>
-                        <TableCell sx={{ fontSize: '0.75rem', color: '#64748b' }}>{o.orderId?.slice(-8)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'var(--fh-muted)' }}>{o.orderId?.slice(-8)}</TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{o.symbol}</Typography>
-                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{o.exchange}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: 'var(--fh-muted)' }}>{o.exchange}</Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
                             label={o.transactionType} size="small"
                             sx={{
                               background: o.transactionType === 'BUY' ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)',
-                              color: o.transactionType === 'BUY' ? '#10b981' : '#f43f5e',
+                              color: o.transactionType === 'BUY' ? 'var(--fh-up)' : 'var(--fh-down)',
                               fontWeight: 700, fontSize: '0.7rem',
                             }}
                           />
@@ -415,7 +484,7 @@ const Trading: React.FC = () => {
                         <TableCell sx={{ fontSize: '0.78rem' }}>{o.orderType}</TableCell>
                         <TableCell>{o.quantity}</TableCell>
                         <TableCell sx={{ fontSize: '0.82rem' }}>{o.price > 0 ? fmt(o.price) : 'MKT'}</TableCell>
-                        <TableCell sx={{ fontSize: '0.78rem', color: '#64748b' }}>{o.filledQty ?? '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem', color: 'var(--fh-muted)' }}>{o.filledQty ?? '-'}</TableCell>
                         <TableCell>
                           <Chip
                             label={o.status} size="small"
@@ -426,9 +495,9 @@ const Trading: React.FC = () => {
                                 o.status === 'open' || o.status === 'trigger pending' ? 'rgba(245,158,11,0.15)' :
                                 'rgba(148,163,184,0.1)',
                               color:
-                                o.status === 'complete' ? '#10b981' :
-                                o.status === 'open' || o.status === 'trigger pending' ? '#f59e0b' :
-                                '#94a3b8',
+                                o.status === 'complete' ? 'var(--fh-up)' :
+                                o.status === 'open' || o.status === 'trigger pending' ? 'var(--fh-warn)' :
+                                'var(--fh-text-3)',
                             }}
                           />
                         </TableCell>
@@ -456,7 +525,7 @@ const Trading: React.FC = () => {
       <TabPanel value={tabValue} index={2}>
         <Card>
           <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={2}>
               <Typography variant="h6" fontWeight={700}>Intraday Positions</Typography>
               <Typography variant="body2" color={totalPnl >= 0 ? 'success.main' : 'error.main'} fontWeight={700}>
                 Day P&amp;L: {totalPnl >= 0 ? '+' : ''}{fmt(totalPnl)}
@@ -465,12 +534,12 @@ const Trading: React.FC = () => {
             {positions.length === 0 ? (
               <Typography color="text.secondary" textAlign="center" py={4}>No open positions</Typography>
             ) : (
-              <TableContainer>
-                <Table size="small">
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 640 }}>
                   <TableHead>
                     <TableRow>
                       {['Symbol', 'Product', 'Qty', 'Buy Avg', 'LTP', 'P&L', 'Value'].map(h => (
-                        <TableCell key={h}>{h}</TableCell>
+                        <TableCell key={h} sx={headCellSx}>{h}</TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
@@ -479,14 +548,14 @@ const Trading: React.FC = () => {
                       <TableRow key={i} hover>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{p.symbol}</Typography>
-                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{p.exchange}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: 'var(--fh-muted)' }}>{p.exchange}</Typography>
                         </TableCell>
                         <TableCell><Chip label={p.product} size="small" variant="outlined" sx={{ fontSize: '0.68rem' }} /></TableCell>
                         <TableCell>{p.quantity}</TableCell>
                         <TableCell sx={{ fontSize: '0.82rem' }}>{fmt(p.buyPrice)}</TableCell>
                         <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{fmt(p.ltp)}</TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: p.pnl >= 0 ? '#10b981' : '#f43f5e' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: p.pnl >= 0 ? 'var(--fh-up)' : 'var(--fh-down)' }}>
                             {p.pnl >= 0 ? <TrendingUp sx={{ fontSize: '0.9rem' }} /> : <TrendingDown sx={{ fontSize: '0.9rem' }} />}
                             <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
                               {p.pnl >= 0 ? '+' : ''}{fmt(p.pnl)}
@@ -512,12 +581,12 @@ const Trading: React.FC = () => {
             {holdings.length === 0 ? (
               <Typography color="text.secondary" textAlign="center" py={4}>No holdings</Typography>
             ) : (
-              <TableContainer>
-                <Table size="small">
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 640 }}>
                   <TableHead>
                     <TableRow>
                       {['Symbol', 'Qty', 'Avg Price', 'LTP', 'P&L', 'Day Chg', 'Value'].map(h => (
-                        <TableCell key={h}>{h}</TableCell>
+                        <TableCell key={h} sx={headCellSx}>{h}</TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
@@ -526,17 +595,17 @@ const Trading: React.FC = () => {
                       <TableRow key={i} hover>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{h.symbol}</Typography>
-                          <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>{h.exchange}</Typography>
+                          <Typography sx={{ fontSize: '0.68rem', color: 'var(--fh-muted)' }}>{h.exchange}</Typography>
                         </TableCell>
                         <TableCell>{h.quantity}</TableCell>
                         <TableCell sx={{ fontSize: '0.82rem' }}>₹{h.averagePrice?.toFixed(2)}</TableCell>
                         <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700 }}>₹{h.currentPrice?.toFixed(2)}</TableCell>
                         <TableCell>
-                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: h.pnl >= 0 ? '#10b981' : '#f43f5e' }}>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: h.pnl >= 0 ? 'var(--fh-up)' : 'var(--fh-down)' }}>
                             {h.pnl >= 0 ? '+' : ''}{fmt(h.pnl)}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ fontSize: '0.78rem', color: h.dayChange >= 0 ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
+                        <TableCell sx={{ fontSize: '0.78rem', color: h.dayChange >= 0 ? 'var(--fh-up)' : 'var(--fh-down)', fontWeight: 600 }}>
                           {h.dayChangePercent >= 0 ? '+' : ''}{h.dayChangePercent?.toFixed(2)}%
                         </TableCell>
                         <TableCell sx={{ fontSize: '0.82rem', fontWeight: 600 }}>{fmt(h.value)}</TableCell>
@@ -553,7 +622,7 @@ const Trading: React.FC = () => {
       {/* ── Funds ──────────────────────────────────────────────────────── */}
       <TabPanel value={tabValue} index={4}>
         {funds ? (
-          <Grid container spacing={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }}>
             {Object.entries(funds).map(([segment, data]: [string, any]) => {
               if (typeof data !== 'object' || data === null) return null;
               return (
@@ -565,11 +634,11 @@ const Trading: React.FC = () => {
                       </Typography>
                       <Box display="flex" flexDirection="column" gap={1.5}>
                         {Object.entries(data).map(([k, v]) => (
-                          <Box key={k} display="flex" justifyContent="space-between">
-                            <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                          <Box key={k} display="flex" justifyContent="space-between" gap={2}>
+                            <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize', minWidth: 0 }}>
                               {k.replace(/_/g, ' ')}
                             </Typography>
-                            <Typography variant="body2" fontWeight={600}>
+                            <Typography variant="body2" fontWeight={600} sx={{ textAlign: 'right', wordBreak: 'break-word' }}>
                               {typeof v === 'number' ? fmt(v as number) : String(v)}
                             </Typography>
                           </Box>

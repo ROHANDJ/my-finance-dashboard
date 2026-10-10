@@ -264,4 +264,60 @@ async function enrichHoldings(holdings = []) {
   }
 }
 
-module.exports = { getIndices, getQuote, getFinnhubQuote, getAlphaVantageQuote, searchStocks, enrichHoldings };
+// ---------------------------------------------------------------------------
+// Price history for charts (Yahoo v8 chart API)
+// ---------------------------------------------------------------------------
+const CHART_RANGES = {
+  '1d':  { interval: '5m',  ttl: 60_000 },
+  '5d':  { interval: '15m', ttl: 5 * 60_000 },
+  '1mo': { interval: '1d',  ttl: 30 * 60_000 },
+  '6mo': { interval: '1d',  ttl: 60 * 60_000 },
+  '1y':  { interval: '1d',  ttl: 60 * 60_000 },
+  '5y':  { interval: '1wk', ttl: 6 * 60 * 60_000 },
+};
+
+async function getChart(symbol, range = '1d') {
+  const cfg = CHART_RANGES[range];
+  if (!cfg) throw new Error(`Unsupported range: ${range}`);
+
+  return cached(`chart_${symbol}_${range}`, cfg.ttl, async () => {
+    const { cookie } = await getYfSession();
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${cfg.interval}`;
+    const { data } = await axios.get(url, {
+      headers: { 'User-Agent': YF_UA, Accept: 'application/json', Cookie: cookie },
+      timeout: 10000,
+    });
+
+    const result = data?.chart?.result?.[0];
+    if (!result) throw new Error('No chart data');
+    const meta   = result.meta || {};
+    const closes = result.indicators?.quote?.[0]?.close || [];
+
+    const points = (result.timestamp || [])
+      .map((t, i) => ({ t: t * 1000, p: closes[i] }))
+      .filter(pt => typeof pt.p === 'number');
+
+    // Intraday compares with yesterday's close; longer ranges with the first point.
+    const base = range === '1d'
+      ? (meta.chartPreviousClose ?? meta.previousClose ?? points[0]?.p)
+      : points[0]?.p;
+    const last = meta.regularMarketPrice ?? points[points.length - 1]?.p ?? null;
+
+    return {
+      symbol,
+      range,
+      name: meta.longName || meta.shortName || symbol,
+      currency: meta.currency || null,
+      timezone: meta.exchangeTimezoneName || null,
+      price: last,
+      base: base ?? null,
+      change: last != null && base != null ? last - base : null,
+      changePercent: last != null && base ? ((last - base) / base) * 100 : null,
+      high: points.length ? Math.max(...points.map(pt => pt.p)) : null,
+      low:  points.length ? Math.min(...points.map(pt => pt.p)) : null,
+      points,
+    };
+  });
+}
+
+module.exports = { getIndices, getQuote, getFinnhubQuote, getAlphaVantageQuote, searchStocks, enrichHoldings, getChart, CHART_RANGES };

@@ -4,7 +4,19 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#060818" />
+    <script>
+      // Apply the saved colour mode before first paint (no dark→light flash).
+      (function () {
+        try {
+          var p = localStorage.getItem('fh-color-mode') || 'dark';
+          var m = p === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : p;
+          document.documentElement.setAttribute('data-theme', m);
+        } catch (e) {}
+      })();
+    </script>
     <meta
       name="description"
       content="Advanced Stock Market and Portfolio Analyzer with Live Trading"

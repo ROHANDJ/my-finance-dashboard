@@ -19,11 +19,12 @@ import {
   FormControl,
   InputLabel,
   Alert,
-  Skeleton,
   Drawer,
   Divider,
   Tooltip,
   InputAdornment,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Add,
@@ -40,6 +41,11 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import {
+  StatCardsSkeleton,
+  CardGridSkeleton,
+  ListSkeleton,
+} from '../../components/Skeletons/Skeletons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,14 +150,16 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
   const dueDays = daysUntil(card.dueDate);
   const dueSoon = dueDays <= 5;
 
-  const utilizationColor = utilization >= 75 ? '#F44336' : utilization >= 40 ? '#FF9800' : '#4CAF50';
+  const utilizationColor = utilization >= 75 ? 'var(--fh-down)' : utilization >= 40 ? 'var(--fh-warn)' : 'var(--fh-up)';
 
   return (
     <Card
       sx={{
         borderRadius: 3,
         overflow: 'hidden',
-        boxShadow: 4,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         transition: 'transform 0.2s',
         '&:hover': { transform: 'translateY(-4px)' },
       }}
@@ -160,41 +168,51 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
       <Box
         sx={{
           background: `linear-gradient(135deg, ${card.color} 0%, ${card.color}cc 100%)`,
-          p: 3,
+          p: { xs: 2, sm: 3 },
           color: 'white',
           position: 'relative',
           minHeight: 160,
         }}
       >
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-          <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" fontWeight={700} noWrap sx={{ textShadow: '0 1px 3px var(--fh-shadow)' }}>
               {card.bankName}
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.85 }}>
+            <Typography variant="body2" noWrap sx={{ opacity: 0.85 }}>
               {card.cardName}
             </Typography>
           </Box>
-          <Box display="flex" gap={0.5}>
-            <IconButton size="small" sx={{ color: 'white', opacity: 0.8 }} onClick={onEdit}>
-              <Edit fontSize="small" />
-            </IconButton>
-            <IconButton size="small" sx={{ color: 'white', opacity: 0.8 }} onClick={onDelete}>
-              <Delete fontSize="small" />
-            </IconButton>
+          <Box display="flex" gap={0.5} sx={{ flexShrink: 0 }}>
+            <Tooltip title="Edit card">
+              <IconButton size="small" sx={{ color: 'white', opacity: 0.8 }} onClick={onEdit}>
+                <Edit fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete card">
+              <IconButton size="small" sx={{ color: 'white', opacity: 0.8 }} onClick={onDelete}>
+                <Delete fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
 
         <Typography
           variant="h5"
           fontWeight={600}
-          sx={{ mt: 3, letterSpacing: 4, fontFamily: 'monospace' }}
+          noWrap
+          sx={{
+            mt: 3,
+            letterSpacing: { xs: 2, sm: 4 },
+            fontSize: { xs: '1.1rem', sm: '1.4rem' },
+            fontFamily: 'monospace',
+          }}
         >
           **** **** **** {card.last4Digits}
         </Typography>
 
         <Box display="flex" justifyContent="space-between" alignItems="flex-end" mt={2}>
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="caption" sx={{ opacity: 0.7 }}>LIMIT</Typography>
             <Typography variant="body2" fontWeight={600}>
               {formatCurrency(card.creditLimit)}
@@ -212,10 +230,8 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
             label={`Due in ${dueDays}d`}
             size="small"
             sx={{
-              position: 'absolute',
-              top: 12,
-              right: 56,
-              backgroundColor: '#F44336',
+              mt: 1.5,
+              backgroundColor: 'var(--fh-down)',
               color: 'white',
               fontWeight: 700,
               fontSize: '0.65rem',
@@ -225,7 +241,7 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
       </Box>
 
       {/* Card Details */}
-      <CardContent>
+      <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <Grid container spacing={1} mb={1.5}>
           <Grid item xs={6}>
             <Typography variant="caption" color="text.secondary">Current Balance</Typography>
@@ -242,7 +258,7 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
         </Grid>
 
         <Box mb={1}>
-          <Box display="flex" justifyContent="space-between">
+          <Box display="flex" justifyContent="space-between" flexWrap="wrap" columnGap={1}>
             <Typography variant="caption" color="text.secondary">
               Utilization {utilization.toFixed(1)}%
             </Typography>
@@ -257,6 +273,7 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
               height: 6,
               borderRadius: 3,
               mt: 0.5,
+              backgroundColor: 'rgba(148,163,184,0.15)',
               '& .MuiLinearProgress-bar': { backgroundColor: utilizationColor },
             }}
           />
@@ -268,7 +285,7 @@ const CreditCardVisual: React.FC<CreditCardVisualProps> = ({ card, onViewTx, onE
           size="small"
           endIcon={<ArrowForward />}
           onClick={onViewTx}
-          sx={{ mt: 1 }}
+          sx={{ mt: 'auto' }}
         >
           View Transactions
         </Button>
@@ -287,6 +304,8 @@ interface TxDrawerProps {
 
 const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
   const queryClient = useQueryClient();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [openTxDialog, setOpenTxDialog] = useState(false);
   const [txForm, setTxForm] = useState<TxFormData>({
     amount: '',
@@ -354,24 +373,32 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
         onClose={onClose}
         PaperProps={{ sx: { width: { xs: '100%', sm: 480 } } }}
       >
-        <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
+        <Box sx={{ p: { xs: 2, sm: 3 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" gap={1} mb={2}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight={700} noWrap sx={{ color: 'var(--fh-text)' }}>
                 {card?.bankName} — {card?.cardName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 **** {card?.last4Digits}
               </Typography>
             </Box>
-            <IconButton onClick={onClose}><Close /></IconButton>
+            <IconButton onClick={onClose} aria-label="Close" sx={{ flexShrink: 0 }}><Close /></IconButton>
           </Box>
 
           {/* Month Total */}
-          <Card sx={{ mb: 2, backgroundColor: 'primary.main', color: 'white' }}>
+          <Card
+            sx={{
+              mb: 2,
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(6,182,212,0.12) 100%)',
+              border: '1px solid rgba(99,102,241,0.35)',
+            }}
+          >
             <CardContent sx={{ py: '12px !important' }}>
-              <Typography variant="body2" sx={{ opacity: 0.85 }}>This Month's Spend</Typography>
-              <Typography variant="h5" fontWeight={700}>{formatCurrency(thisMonthTotal)}</Typography>
+              <Typography variant="body2" sx={{ color: 'var(--fh-text-3)' }}>This Month's Spend</Typography>
+              <Typography variant="h5" fontWeight={700} sx={{ color: 'var(--fh-text)' }}>
+                {formatCurrency(thisMonthTotal)}
+              </Typography>
             </CardContent>
           </Card>
 
@@ -386,9 +413,7 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
 
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             {txQuery.isLoading ? (
-              <Box>{[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} variant="rectangular" height={60} sx={{ mb: 1, borderRadius: 1 }} />
-              ))}</Box>
+              <ListSkeleton rows={6} title={false} avatar />
             ) : transactions.length === 0 ? (
               <Box textAlign="center" py={4}>
                 <CreditCard sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
@@ -401,31 +426,33 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
                   display="flex"
                   justifyContent="space-between"
                   alignItems="center"
+                  gap={1}
                   py={1.5}
                   borderBottom="1px solid"
                   borderColor="divider"
                 >
-                  <Box display="flex" alignItems="center" gap={1.5}>
+                  <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0 }}>
                     <Box
                       sx={{
                         width: 36,
                         height: 36,
                         borderRadius: '50%',
-                        backgroundColor: tx.type === 'debit' ? '#FFEBEE' : '#E8F5E9',
+                        backgroundColor: tx.type === 'debit' ? 'rgba(244,63,94,0.12)' : 'rgba(16,185,129,0.12)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       {tx.type === 'debit'
-                        ? <TrendingDown sx={{ color: '#F44336', fontSize: 18 }} />
-                        : <TrendingUp sx={{ color: '#4CAF50', fontSize: 18 }} />}
+                        ? <TrendingDown sx={{ color: 'var(--fh-down)', fontSize: 18 }} />
+                        : <TrendingUp sx={{ color: 'var(--fh-up)', fontSize: 18 }} />}
                     </Box>
-                    <Box>
-                      <Typography variant="body2" fontWeight={600}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={600} noWrap>
                         {tx.description}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" noWrap component="div">
                         {tx.merchantName ? `${tx.merchantName} · ` : ''}{tx.category} · {new Date(tx.date).toLocaleDateString('en-IN')}
                       </Typography>
                     </Box>
@@ -434,6 +461,7 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
                     variant="body2"
                     fontWeight={700}
                     color={tx.type === 'debit' ? 'error.main' : 'success.main'}
+                    sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
                     {tx.type === 'debit' ? '-' : '+'}{formatCurrency(tx.amount)}
                   </Typography>
@@ -445,7 +473,13 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
       </Drawer>
 
       {/* Add Transaction Dialog */}
-      <Dialog open={openTxDialog} onClose={() => setOpenTxDialog(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={openTxDialog}
+        onClose={() => setOpenTxDialog(false)}
+        maxWidth="xs"
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>Add Transaction</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
@@ -527,6 +561,8 @@ const TxDrawer: React.FC<TxDrawerProps> = ({ card, open, onClose }) => {
 
 const CreditCards: React.FC = () => {
   const queryClient = useQueryClient();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [editCard, setEditCard] = useState<CreditCardData | null>(null);
@@ -643,10 +679,10 @@ const CreditCards: React.FC = () => {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  const CardFormDialog: React.FC<{ open: boolean; onClose: () => void; isEdit?: boolean }> = ({
-    open, onClose, isEdit = false,
-  }) => (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+  // Rendered via a plain function (not an inline component) so the dialog
+  // isn't remounted on every keystroke, which used to drop input focus.
+  const renderCardFormDialog = (open: boolean, onClose: () => void, isEdit = false) => (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={isMobile}>
       <DialogTitle>{isEdit ? 'Edit Card' : 'Add New Card'}</DialogTitle>
       <DialogContent>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
@@ -714,7 +750,8 @@ const CreditCards: React.FC = () => {
                     borderRadius: '50%',
                     backgroundColor: color,
                     cursor: 'pointer',
-                    border: form.color === color ? '3px solid #1976d2' : '2px solid transparent',
+                    border: form.color === color ? '3px solid var(--fh-text)' : '2px solid rgba(148,163,184,0.25)',
+                    boxShadow: form.color === color ? '0 0 0 2px #6366f1' : 'none',
                     boxSizing: 'border-box',
                     transition: 'border 0.15s',
                   }}
@@ -740,12 +777,30 @@ const CreditCards: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>Credit Cards</Typography>
-        <Box display="flex" gap={1}>
-          <IconButton onClick={() => queryClient.invalidateQueries('credit-cards')} color="primary">
-            <Refresh />
-          </IconButton>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            Credit Cards
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+            Monitor limits, utilisation and upcoming dues across your cards
+          </Typography>
+        </Box>
+        <Box display="flex" gap={1} alignItems="center">
+          <Tooltip title="Refresh">
+            <IconButton onClick={() => queryClient.invalidateQueries('credit-cards')} color="primary">
+              <Refresh />
+            </IconButton>
+          </Tooltip>
           <Button variant="contained" startIcon={<Add />} onClick={() => { setForm(defaultForm); setOpenAddDialog(true); }}>
             Add Card
           </Button>
@@ -765,77 +820,63 @@ const CreditCards: React.FC = () => {
       )}
 
       {/* Summary Cards */}
-      <Grid container spacing={3} mb={4}>
+      {cardsQuery.isLoading ? (
+        <StatCardsSkeleton count={4} />
+      ) : (
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #1976d2' }}>
+          <Card sx={{ borderLeft: '4px solid #6366f1' }}>
             <CardContent>
               <Typography variant="body2" color="text.secondary">Total Credit Limit</Typography>
-              {cardsQuery.isLoading
-                ? <Skeleton variant="text" width={120} height={40} />
-                : <Typography variant="h5" fontWeight={700}>{formatCurrency(totalLimit)}</Typography>}
+              <Typography variant="h5" fontWeight={700}>{formatCurrency(totalLimit)}</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #F44336' }}>
+          <Card sx={{ borderLeft: '4px solid var(--fh-down)' }}>
             <CardContent>
               <Typography variant="body2" color="text.secondary">Total Used</Typography>
-              {cardsQuery.isLoading
-                ? <Skeleton variant="text" width={120} height={40} />
-                : <Typography variant="h5" fontWeight={700} color="error.main">{formatCurrency(totalUsed)}</Typography>}
+              <Typography variant="h5" fontWeight={700} color="error.main">{formatCurrency(totalUsed)}</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: '4px solid #4CAF50' }}>
+          <Card sx={{ borderLeft: '4px solid var(--fh-up)' }}>
             <CardContent>
               <Typography variant="body2" color="text.secondary">Available Credit</Typography>
-              {cardsQuery.isLoading
-                ? <Skeleton variant="text" width={120} height={40} />
-                : <Typography variant="h5" fontWeight={700} color="success.main">{formatCurrency(totalAvailable)}</Typography>}
+              <Typography variant="h5" fontWeight={700} color="success.main">{formatCurrency(totalAvailable)}</Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ borderLeft: `4px solid ${overallUtilization >= 75 ? '#F44336' : overallUtilization >= 40 ? '#FF9800' : '#4CAF50'}` }}>
+          <Card sx={{ borderLeft: `4px solid ${overallUtilization >= 75 ? 'var(--fh-down)' : overallUtilization >= 40 ? 'var(--fh-warn)' : 'var(--fh-up)'}` }}>
             <CardContent>
               <Typography variant="body2" color="text.secondary">Overall Utilization</Typography>
-              {cardsQuery.isLoading ? (
-                <Skeleton variant="text" width={120} height={40} />
-              ) : (
-                <>
-                  <Typography variant="h5" fontWeight={700}>
-                    {overallUtilization.toFixed(1)}%
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={Math.min(overallUtilization, 100)}
-                    color={utilizationColor}
-                    sx={{ mt: 1, height: 6, borderRadius: 3 }}
-                  />
-                </>
-              )}
+              <Typography variant="h5" fontWeight={700}>
+                {overallUtilization.toFixed(1)}%
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(overallUtilization, 100)}
+                color={utilizationColor}
+                sx={{ mt: 1, height: 6, borderRadius: 3 }}
+              />
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+      )}
 
       {/* Cards Grid */}
       {cardsQuery.isLoading ? (
-        <Grid container spacing={3}>
-          {[1, 2, 3].map((i) => (
-            <Grid item xs={12} sm={6} md={4} key={i}>
-              <Skeleton variant="rectangular" height={320} sx={{ borderRadius: 3 }} />
-            </Grid>
-          ))}
-        </Grid>
+        <CardGridSkeleton count={3} height={300} />
       ) : cardsQuery.isError ? (
         <Alert severity="error">Failed to load credit cards. Please refresh.</Alert>
       ) : cards.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 8 }}>
             <CreditCard sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>No Cards Added</Typography>
+            <Typography variant="h6" gutterBottom sx={{ color: 'var(--fh-text)' }}>No Cards Added</Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
               Add your first credit card to start tracking.
             </Typography>
@@ -845,9 +886,9 @@ const CreditCards: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, md: 3 }}>
           {cards.map((card) => (
-            <Grid item xs={12} sm={6} md={4} key={card._id}>
+            <Grid item xs={12} sm={6} lg={4} xl={3} key={card._id}>
               <CreditCardVisual
                 card={card}
                 onViewTx={() => setViewTxCard(card)}
@@ -864,8 +905,8 @@ const CreditCards: React.FC = () => {
       )}
 
       {/* Dialogs */}
-      <CardFormDialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} />
-      <CardFormDialog open={!!editCard} onClose={() => { setEditCard(null); setForm(defaultForm); }} isEdit />
+      {renderCardFormDialog(openAddDialog, () => setOpenAddDialog(false))}
+      {renderCardFormDialog(!!editCard, () => { setEditCard(null); setForm(defaultForm); }, true)}
 
       {/* Transactions Drawer */}
       <TxDrawer

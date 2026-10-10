@@ -42,12 +42,12 @@ const ForgotPassword: React.FC = () => {
     return (
       <AuthLayout title="Check your email" subtitle="We've sent you a link to reset your password">
         <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <MarkEmailRead sx={{ fontSize: 48, color: '#10b981', mb: 2 }} />
-          <Typography sx={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: 1.7 }}>
-            If an account exists for <Box component="span" sx={{ color: '#e2e8f0', fontWeight: 600 }}>{sentTo}</Box>,
+          <MarkEmailRead sx={{ fontSize: 48, color: 'var(--fh-up)', mb: 2 }} />
+          <Typography sx={{ color: 'var(--fh-text-3)', fontSize: '0.88rem', lineHeight: 1.7 }}>
+            If an account exists for <Box component="span" sx={{ color: 'var(--fh-text)', fontWeight: 600 }}>{sentTo}</Box>,
             you'll get an email with a reset link shortly. The link expires in 30 minutes.
           </Typography>
-          <Typography sx={{ color: '#64748b', fontSize: '0.8rem', mt: 2 }}>
+          <Typography sx={{ color: 'var(--fh-muted)', fontSize: '0.8rem', mt: 2 }}>
             Don't see it? Check your spam folder, or{' '}
             <Link component="button" type="button" onClick={() => setSentTo('')} sx={{ ...authLinkSx, fontSize: '0.8rem', verticalAlign: 'baseline' }}>
               try again

@@ -10,7 +10,6 @@ import {
   Chip,
   LinearProgress,
   Alert,
-  Skeleton,
   Divider,
   Tooltip,
 } from '@mui/material';
@@ -45,11 +44,18 @@ import { useQuery } from 'react-query';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import IndexChartDialog, { ChartableIndex } from '../../components/IndexChart/IndexChartDialog';
+import {
+  StatCardsSkeleton,
+  ChartSkeleton,
+  ListSkeleton,
+} from '../../components/Skeletons/Skeletons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MarketIndex {
   symbol: string;
+  short?: string;
   name: string;
   value: number;
   change: number;
@@ -121,14 +127,14 @@ interface EODSummary {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Food: '#FF6B35',
-  Transport: '#4CAF50',
-  Shopping: '#9C27B0',
-  Entertainment: '#FF9800',
-  Utilities: '#2196F3',
-  Health: '#F44336',
-  Education: '#00BCD4',
-  Other: '#607D8B',
+  Food: '#f97316',
+  Transport: 'var(--fh-up)',
+  Shopping: '#a855f7',
+  Entertainment: 'var(--fh-warn)',
+  Utilities: 'var(--fh-info)',
+  Health: 'var(--fh-down)',
+  Education: '#22d3ee',
+  Other: 'var(--fh-muted)',
 };
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -140,6 +146,19 @@ const formatCurrency = (v: number) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v);
+
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    background: 'var(--fh-paper-solid)',
+    border: '1px solid rgba(99,102,241,0.3)',
+    borderRadius: 8,
+    color: 'var(--fh-text)',
+  },
+  labelStyle: { color: 'var(--fh-text-3)' },
+  itemStyle: { color: 'var(--fh-text)' },
+};
+
+const AXIS_TICK = { fontSize: 11, fill: 'var(--fh-text-3)' };
 
 const formatTime = (d: Date) =>
   d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -161,9 +180,9 @@ interface StatRowProps {
   value: React.ReactNode;
 }
 const StatRow: React.FC<StatRowProps> = ({ label, value }) => (
-  <Box display="flex" justifyContent="space-between" alignItems="center" py={0.75}>
-    <Typography variant="body2" color="text.secondary">{label}</Typography>
-    <Box>{value}</Box>
+  <Box display="flex" justifyContent="space-between" alignItems="center" gap={1} py={0.75}>
+    <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
+    <Box sx={{ minWidth: 0, textAlign: 'right' }}>{value}</Box>
   </Box>
 );
 
@@ -172,6 +191,8 @@ const StatRow: React.FC<StatRowProps> = ({ label, value }) => (
 const EODDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  const [chartIndex, setChartIndex] = useState<ChartableIndex | null>(null);
   const now = new Date();
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<EODSummary>(
@@ -214,17 +235,28 @@ const EODDashboard: React.FC = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3} flexWrap="wrap" gap={1}>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>End of Day Summary</Typography>
-          <Typography variant="body2" color="text.secondary">
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: { xs: 1, sm: 2 },
+          mb: { xs: 2, md: 3 },
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            End of Day Summary
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)' }}>
             {formatDate(now)}
           </Typography>
         </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Typography variant="caption" color="text.secondary">
+        <Box display="flex" alignItems="center" gap={1} sx={{ minWidth: 0 }}>
+          <Typography variant="caption" sx={{ color: 'var(--fh-muted)' }}>
             Last updated: {formatTime(lastUpdated)} · Auto-refresh in {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
           </Typography>
           <Tooltip title="Refresh now">
@@ -236,13 +268,13 @@ const EODDashboard: React.FC = () => {
       </Box>
 
       {/* ── Alert Banners ─────────────────────────────────────────────────────── */}
-      {alerts.map((alert, i) => (
+      {alerts.filter((a) => !dismissedAlerts.has(a.message)).map((alert, i) => (
         <Alert
-          key={i}
+          key={`${alert.type}-${i}`}
           severity={alert.type}
           icon={<NotificationsActive />}
           sx={{ mb: 1 }}
-          onClose={() => {/* dismiss */}}
+          onClose={() => setDismissedAlerts((prev) => new Set(prev).add(alert.message))}
         >
           {alert.message}
         </Alert>
@@ -250,13 +282,17 @@ const EODDashboard: React.FC = () => {
 
       {isLoading ? (
         /* ── Loading Skeletons ─────────────────────────────────────────────────── */
-        <Grid container spacing={3}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Grid item xs={12} sm={6} lg={3} key={i}>
-              <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 2 }} />
-            </Grid>
-          ))}
-        </Grid>
+        <Box>
+          <StatCardsSkeleton count={4} />
+          <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 3 } }}>
+            <Grid item xs={12} md={7}><ChartSkeleton height={240} /></Grid>
+            <Grid item xs={12} md={5}><ChartSkeleton height={240} /></Grid>
+          </Grid>
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            <Grid item xs={12} md={8}><ListSkeleton rows={3} /></Grid>
+            <Grid item xs={12} md={4}><ListSkeleton rows={4} /></Grid>
+          </Grid>
+        </Box>
       ) : isError ? (
         <Alert severity="error" action={
           <Button color="inherit" size="small" onClick={handleRefresh}>Retry</Button>
@@ -266,10 +302,10 @@ const EODDashboard: React.FC = () => {
       ) : (
         <>
           {/* ── Main Grid ────────────────────────────────────────────────────────── */}
-          <Grid container spacing={3} mb={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 3 } }}>
             {/* Portfolio Summary */}
             <Grid item xs={12} sm={6} lg={3}>
-              <Card sx={{ height: '100%', borderTop: `4px solid ${dayChangePositive ? '#4CAF50' : '#F44336'}` }}>
+              <Card sx={{ height: '100%', borderTop: `4px solid ${dayChangePositive ? 'var(--fh-up)' : 'var(--fh-down)'}` }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
                     <AccountBalance color="primary" />
@@ -280,8 +316,8 @@ const EODDashboard: React.FC = () => {
                   </Typography>
                   <Box display="flex" alignItems="center" gap={0.5} mb={2}>
                     {dayChangePositive
-                      ? <ArrowUpward sx={{ color: '#4CAF50', fontSize: 16 }} />
-                      : <ArrowDownward sx={{ color: '#F44336', fontSize: 16 }} />}
+                      ? <ArrowUpward sx={{ color: 'var(--fh-up)', fontSize: 16 }} />
+                      : <ArrowDownward sx={{ color: 'var(--fh-down)', fontSize: 16 }} />}
                     <Typography
                       variant="body2"
                       fontWeight={600}
@@ -329,10 +365,10 @@ const EODDashboard: React.FC = () => {
 
             {/* Today's Expenses */}
             <Grid item xs={12} sm={6} lg={3}>
-              <Card sx={{ height: '100%', borderTop: '4px solid #FF6B35' }}>
+              <Card sx={{ height: '100%', borderTop: '4px solid #f97316' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
-                    <ShoppingCart sx={{ color: '#FF6B35' }} />
+                    <ShoppingCart sx={{ color: '#f97316' }} />
                     <Typography variant="h6" fontWeight={600}>Today's Expenses</Typography>
                   </Box>
                   <Typography variant="h5" fontWeight={700} mb={0.5}>
@@ -347,16 +383,16 @@ const EODDashboard: React.FC = () => {
                     <Box
                       sx={{
                         width: 8, height: 8, borderRadius: '50%',
-                        backgroundColor: CATEGORY_COLORS[expenses?.topCategory ?? ''] ?? '#607D8B',
+                        backgroundColor: CATEGORY_COLORS[expenses?.topCategory ?? ''] ?? 'var(--fh-muted)',
                       }}
                     />
                     <Typography variant="body2" fontWeight={600}>{expenses?.topCategory ?? '—'}</Typography>
                   </Box>
                   <Typography variant="caption" color="text.secondary">RECENT</Typography>
                   {(expenses?.recentTransactions ?? []).slice(0, 3).map((tx, i) => (
-                    <Box key={i} display="flex" justifyContent="space-between" py={0.4}>
-                      <Typography variant="caption" noWrap sx={{ maxWidth: 120 }}>{tx.description}</Typography>
-                      <Typography variant="caption" fontWeight={600} color="error.main">
+                    <Box key={i} display="flex" justifyContent="space-between" gap={1} py={0.4}>
+                      <Typography variant="caption" noWrap sx={{ minWidth: 0, flex: 1, color: 'var(--fh-text-2)' }}>{tx.description}</Typography>
+                      <Typography variant="caption" fontWeight={600} color="error.main" sx={{ flexShrink: 0 }}>
                         -{formatCurrency(tx.amount)}
                       </Typography>
                     </Box>
@@ -367,10 +403,10 @@ const EODDashboard: React.FC = () => {
 
             {/* Credit Cards */}
             <Grid item xs={12} sm={6} lg={3}>
-              <Card sx={{ height: '100%', borderTop: '4px solid #9C27B0' }}>
+              <Card sx={{ height: '100%', borderTop: '4px solid #a855f7' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
-                    <CreditCard sx={{ color: '#9C27B0' }} />
+                    <CreditCard sx={{ color: '#a855f7' }} />
                     <Typography variant="h6" fontWeight={600}>Credit Cards</Typography>
                   </Box>
                   <Typography variant="h5" fontWeight={700} mb={0.5} color="error.main">
@@ -422,7 +458,7 @@ const EODDashboard: React.FC = () => {
 
             {/* Market Overview */}
             <Grid item xs={12} sm={6} lg={3}>
-              <Card sx={{ height: '100%', borderTop: '4px solid #2196F3' }}>
+              <Card sx={{ height: '100%', borderTop: '4px solid var(--fh-info)' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
                     <TrendingUp color="info" />
@@ -436,25 +472,32 @@ const EODDashboard: React.FC = () => {
                       return (
                         <Box
                           key={idx.symbol}
+                          onClick={() => setChartIndex({ symbol: idx.symbol, name: idx.name })}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setChartIndex({ symbol: idx.symbol, name: idx.name }); } }}
+                          title="View chart"
+                          sx={{ cursor: 'pointer', borderRadius: 1, '&:hover': { background: 'rgba(99,102,241,0.08)' } }}
                           display="flex"
                           justifyContent="space-between"
                           alignItems="center"
                           py={0.75}
+                          gap={1}
                           borderBottom="1px solid"
                           borderColor="divider"
                         >
-                          <Box>
-                            <Typography variant="body2" fontWeight={600}>{idx.name}</Typography>
-                            <Typography variant="caption" color="text.secondary">{idx.symbol}</Typography>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={600} noWrap>{idx.name}</Typography>
+                            <Typography variant="caption" color="text.secondary" noWrap component="div">{idx.short || idx.symbol}</Typography>
                           </Box>
-                          <Box textAlign="right">
+                          <Box textAlign="right" sx={{ flexShrink: 0 }}>
                             <Typography variant="body2" fontWeight={700}>
                               {idx.value.toLocaleString('en-IN')}
                             </Typography>
                             <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.3}>
                               {up
-                                ? <TrendingUp sx={{ color: '#4CAF50', fontSize: 14 }} />
-                                : <TrendingDown sx={{ color: '#F44336', fontSize: 14 }} />}
+                                ? <TrendingUp sx={{ color: 'var(--fh-up)', fontSize: 14 }} />
+                                : <TrendingDown sx={{ color: 'var(--fh-down)', fontSize: 14 }} />}
                               <Typography
                                 variant="caption"
                                 fontWeight={600}
@@ -474,45 +517,55 @@ const EODDashboard: React.FC = () => {
           </Grid>
 
           {/* ── Charts Row ───────────────────────────────────────────────────────── */}
-          <Grid container spacing={3} mb={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 3 } }}>
             {/* Portfolio P&L Trend */}
             <Grid item xs={12} md={7}>
-              <Card>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6" fontWeight={600} mb={2}>
                     Portfolio Value Trend — Today
                   </Typography>
                   {trend.length === 0 ? (
                     <Box
-                      height={260}
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
+                      sx={{
+                        height: { xs: 200, md: 260 },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 2,
+                        border: '1px dashed rgba(148,163,184,0.15)',
+                        backgroundColor: 'var(--fh-surface-2)',
+                      }}
                     >
-                      <Typography color="text.secondary">No trend data available</Typography>
+                      <Typography sx={{ color: 'var(--fh-muted)' }}>No trend data available</Typography>
                     </Box>
                   ) : (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <LineChart data={trend}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                    <Box sx={{ height: { xs: 220, sm: 240, md: 260 } }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trend} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                        <XAxis dataKey="time" tick={AXIS_TICK} stroke="var(--fh-faint)" />
                         <YAxis
-                          tick={{ fontSize: 11 }}
+                          tick={AXIS_TICK}
+                          stroke="var(--fh-faint)"
+                          width={56}
                           tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
                         />
                         <RechartsTooltip
+                          {...CHART_TOOLTIP_STYLE}
                           formatter={(v: number) => [formatCurrency(v), 'Portfolio Value']}
                         />
                         <Line
                           type="monotone"
                           dataKey="value"
-                          stroke={dayChangePositive ? '#4CAF50' : '#F44336'}
+                          stroke={dayChangePositive ? 'var(--fh-up)' : 'var(--fh-down)'}
                           strokeWidth={2}
                           dot={false}
                           activeDot={{ r: 5 }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                    </Box>
                   )}
                 </CardContent>
               </Card>
@@ -520,7 +573,7 @@ const EODDashboard: React.FC = () => {
 
             {/* Spending Donut */}
             <Grid item xs={12} md={5}>
-              <Card>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={2}>
                     <PieChartIcon color="secondary" />
@@ -528,15 +581,21 @@ const EODDashboard: React.FC = () => {
                   </Box>
                   {spendingCats.length === 0 ? (
                     <Box
-                      height={260}
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
+                      sx={{
+                        height: { xs: 200, md: 260 },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 2,
+                        border: '1px dashed rgba(148,163,184,0.15)',
+                        backgroundColor: 'var(--fh-surface-2)',
+                      }}
                     >
-                      <Typography color="text.secondary">No expenses today</Typography>
+                      <Typography sx={{ color: 'var(--fh-muted)' }}>No expenses today</Typography>
                     </Box>
                   ) : (
-                    <ResponsiveContainer width="100%" height={260}>
+                    <Box sx={{ height: { xs: 240, md: 260 } }}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={spendingCats}
@@ -544,20 +603,22 @@ const EODDashboard: React.FC = () => {
                           nameKey="category"
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
+                          innerRadius="45%"
+                          outerRadius="70%"
+                          stroke="var(--fh-paper-solid)"
                         >
                           {spendingCats.map((entry, index) => (
                             <Cell
                               key={index}
-                              fill={entry.color || CATEGORY_COLORS[entry.category] || '#607D8B'}
+                              fill={entry.color || CATEGORY_COLORS[entry.category] || 'var(--fh-muted)'}
                             />
                           ))}
                         </Pie>
-                        <Legend />
-                        <RechartsTooltip formatter={(v: number) => formatCurrency(v)} />
+                        <Legend wrapperStyle={{ fontSize: 12, color: 'var(--fh-text-3)' }} />
+                        <RechartsTooltip {...CHART_TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
                       </PieChart>
                     </ResponsiveContainer>
+                    </Box>
                   )}
                 </CardContent>
               </Card>
@@ -565,10 +626,10 @@ const EODDashboard: React.FC = () => {
           </Grid>
 
           {/* ── Insights + Quick Actions ──────────────────────────────────────── */}
-          <Grid container spacing={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }}>
             {/* Insights */}
             <Grid item xs={12} md={8}>
-              <Card>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={1} mb={2}>
                     <Insights color="primary" />
@@ -600,7 +661,7 @@ const EODDashboard: React.FC = () => {
 
             {/* Quick Actions */}
             <Grid item xs={12} md={4}>
-              <Card>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6" fontWeight={600} mb={2}>Quick Actions</Typography>
                   <Box display="flex" flexDirection="column" gap={1.5}>
@@ -608,25 +669,25 @@ const EODDashboard: React.FC = () => {
                       {
                         label: 'View Portfolio',
                         icon: <AccountBalance />,
-                        color: '#1976d2',
+                        color: 'var(--fh-indigo)',
                         action: () => navigate('/portfolio'),
                       },
                       {
                         label: 'Add Expense',
                         icon: <ShoppingCart />,
-                        color: '#FF6B35',
+                        color: '#f97316',
                         action: () => navigate('/expenses'),
                       },
                       {
                         label: 'Pay Credit Card',
                         icon: <CreditCard />,
-                        color: '#9C27B0',
+                        color: '#a855f7',
                         action: () => navigate('/credit-cards'),
                       },
                       {
                         label: 'Browse Stocks',
                         icon: <TrendingUp />,
-                        color: '#4CAF50',
+                        color: 'var(--fh-up)',
                         action: () => navigate('/stocks'),
                       },
                     ].map((btn) => (
@@ -639,10 +700,11 @@ const EODDashboard: React.FC = () => {
                         fullWidth
                         sx={{
                           justifyContent: 'flex-start',
-                          borderColor: btn.color + '60',
+                          '& .MuiButton-endIcon': { ml: 'auto' },
+                          borderColor: `color-mix(in srgb, ${btn.color} 38%, transparent)`,
                           color: btn.color,
                           '&:hover': {
-                            backgroundColor: btn.color + '10',
+                            backgroundColor: `color-mix(in srgb, ${btn.color} 6%, transparent)`,
                             borderColor: btn.color,
                           },
                         }}
@@ -657,6 +719,12 @@ const EODDashboard: React.FC = () => {
           </Grid>
         </>
       )}
+      <IndexChartDialog
+        open={!!chartIndex}
+        onClose={() => setChartIndex(null)}
+        index={chartIndex}
+        indices={market.map((m: any) => ({ symbol: m.symbol, name: m.name }))}
+      />
     </Box>
   );
 };

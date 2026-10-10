@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useReducer, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 
@@ -20,6 +20,7 @@ interface User {
       push: boolean;
     };
     riskProfile: 'conservative' | 'moderate' | 'aggressive';
+    onboardingCompleted?: boolean;
   };
   subscription: {
     plan: 'free' | 'basic' | 'premium';
@@ -42,6 +43,7 @@ interface AuthContextType extends AuthState {
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   updateProfile: (userData: Partial<User>) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
@@ -230,6 +232,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Saved to the profile (not just localStorage) so the tour shows once per
+  // account across devices. Silent: no toast, failures are non-fatal.
+  const completeOnboarding = useCallback(async () => {
+    try {
+      const response = await axios.put('/api/auth/profile', { preferences: { onboardingCompleted: true } });
+      dispatch({ type: 'UPDATE_USER', payload: response.data.user });
+    } catch (error) {
+      console.error('Failed to save onboarding state:', error);
+    }
+  }, []);
+
   const changePassword = async (currentPassword: string, newPassword: string) => {
     try {
       await axios.post('/api/auth/change-password', {
@@ -251,6 +264,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     register,
     logout,
     updateProfile,
+    completeOnboarding,
     changePassword,
   };
 

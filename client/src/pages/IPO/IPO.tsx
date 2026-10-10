@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -12,64 +12,28 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  LinearProgress,
   Tabs,
   Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   Button,
   IconButton,
 } from '@mui/material';
 import {
   Rocket,
   TrendingUp,
-  TrendingDown,
   Refresh,
   Event,
-  Assessment,
   Visibility,
+  OpenInNew,
+  WarningAmber,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-
-interface IPO {
-  symbol: string;
-  companyName: string;
-  exchange: string;
-  country: string;
-  currency: string;
-  status: 'upcoming' | 'open' | 'closed' | 'listed' | 'cancelled';
-  timeline: {
-    openDate?: string;
-    closeDate?: string;
-    listingDate?: string;
-  };
-  offering: {
-    totalShares: number;
-    priceRange?: { min: number; max: number };
-    finalPrice?: number;
-    totalAmount: number;
-  };
-  subscription?: {
-    retail?: { percentage: number };
-    total?: { percentage: number };
-  };
-  listing?: {
-    listingPrice?: number;
-    listingGain?: number;
-    listingGainPercentage?: number;
-    currentPrice?: number;
-  };
-  analysis?: {
-    recommendation: 'subscribe' | 'avoid' | 'neutral';
-    rating: number;
-    pros: string[];
-    cons: string[];
-  };
-}
+import { StatCardSkeleton, TableSkeleton, CardGridSkeleton } from '../../components/Skeletons/Skeletons';
+import {
+  IPO, NSE_IPO_URL, formatDate, formatDateRange, inr, formatPrice, minInvestment,
+  StatusChip, SmeChip, GainText, DetailRow,
+} from './ipoShared';
+import IPODetailsDialog from './IPODetailsDialog';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -77,471 +41,336 @@ interface TabPanelProps {
   value: number;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`tabpanel-${index}`}
-    >
-      {value === index && <Box>{children}</Box>}
-    </div>
-  );
-};
+const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
+  <div role="tabpanel" hidden={value !== index} id={`tabpanel-${index}`}>
+    {value === index && <Box>{children}</Box>}
+  </div>
+);
 
-const IPO: React.FC = () => {
+const EmptyState: React.FC<{ text: string }> = ({ text }) => (
+  <Card>
+    <CardContent sx={{ textAlign: 'center', py: 6 }}>
+      <Rocket sx={{ fontSize: 40, color: 'var(--fh-faint)', mb: 1 }} />
+      <Typography sx={{ color: 'var(--fh-text-3)' }}>{text}</Typography>
+    </CardContent>
+  </Card>
+);
+
+const IPOPage: React.FC = () => {
   const [ipos, setIpos] = useState<IPO[]>([]);
-  const [upcomingIPOs, setUpcomingIPOs] = useState<IPO[]>([]);
-  const [openIPOs, setOpenIPOs] = useState<IPO[]>([]);
-  const [listedIPOs, setListedIPOs] = useState<IPO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [notice, setNotice] = useState('');
   const [tabValue, setTabValue] = useState(0);
   const [selectedIPO, setSelectedIPO] = useState<IPO | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [market, setMarket] = useState<'both' | 'us' | 'indian'>('both');
 
-  useEffect(() => {
-    fetchIPOs();
-  }, [market]);
-
-  const fetchIPOs = async () => {
+  const fetchIPOs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('/api/ipo', {
-        params: { market }
-      });
-      const allIPOs = response.data.ipos || [];
-      
-      setIpos(allIPOs);
-      setUpcomingIPOs(allIPOs.filter((ipo: IPO) => ipo.status === 'upcoming'));
-      setOpenIPOs(allIPOs.filter((ipo: IPO) => ipo.status === 'open'));
-      setListedIPOs(allIPOs.filter((ipo: IPO) => ipo.status === 'listed'));
+      const response = await axios.get('/api/ipo');
+      setIpos(response.data.ipos || []);
+      setNotice(response.data.source === 'unavailable' ? response.data.message : '');
     } catch (error) {
       toast.error('Failed to fetch IPOs');
+      setNotice('Could not load IPOs. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const getIPOAnalysis = async (symbol: string) => {
-    try {
-      const response = await axios.get(`/api/ipo/analysis/${symbol}`);
-      setSelectedIPO(response.data.ipo);
-      setOpenDialog(true);
-    } catch (error) {
-      toast.error('Failed to fetch IPO analysis');
-    }
-  };
+  useEffect(() => { fetchIPOs(); }, [fetchIPOs]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'upcoming': return 'info';
-      case 'open': return 'success';
-      case 'closed': return 'warning';
-      case 'listed': return 'primary';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
+  const upcoming = ipos
+    .filter(i => i.status === 'upcoming')
+    .sort((a, b) => new Date(a.timeline.openDate || 0).getTime() - new Date(b.timeline.openDate || 0).getTime());
+  const open = ipos.filter(i => i.status === 'open');
+  const recent = ipos.filter(i => i.status === 'listed' || i.status === 'closed'); // already newest first
 
-  const getRecommendationColor = (recommendation: string) => {
-    switch (recommendation) {
-      case 'subscribe': return 'success';
-      case 'avoid': return 'error';
-      case 'neutral': return 'warning';
-      default: return 'default';
-    }
-  };
+  // Calendar table: what's actionable first, then the most recent.
+  const calendar = [...open, ...upcoming, ...recent].slice(0, 12);
 
-  const displayIPOs       = ipos;
-  const displayUpcoming   = upcomingIPOs;
-  const displayOpen       = openIPOs;
-  const displayListed     = listedIPOs;
+  const headCellSx = {
+    background: 'var(--fh-table-head)',
+    color: 'var(--fh-text-2)',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+    borderBottom: '1px solid rgba(148, 163, 184, 0.18)',
+  } as const;
 
-  // Build subscription pie from currently-selected IPO's subscription data
-  const subscriptionData = (() => {
-    const ipo = displayOpen[0] || displayIPOs.find(i => i.subscription);
-    if (!ipo?.subscription) return [];
-    return [
-      { name: 'Retail', value: ipo.subscription.retail?.percentage || 0, color: '#6366f1' },
-      { name: 'NII',    value: (ipo.subscription as any).nii?.percentage || 0, color: '#06b6d4' },
-      { name: 'QIB',    value: (ipo.subscription as any).qib?.percentage || 0, color: '#10b981' },
-    ].filter(x => x.value > 0);
-  })();
+  const statCards = [
+    { label: 'Upcoming IPOs', value: upcoming.length, hint: 'Opening for bids soon', icon: <Event sx={{ color: 'var(--fh-info)' }} />, color: 'var(--fh-info)' },
+    { label: 'Open IPOs', value: open.length, hint: 'Accepting bids now', icon: <Rocket sx={{ color: 'var(--fh-up)' }} />, color: 'var(--fh-up)' },
+    { label: 'Recent Issues', value: recent.length, hint: 'Closed or listed in the last 60 days', icon: <TrendingUp sx={{ color: 'var(--fh-indigo)' }} />, color: 'var(--fh-indigo)' },
+  ];
+
+  const nameCell = (ipo: IPO) => (
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+        <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: 'var(--fh-text)' }} title={ipo.companyName}>
+          {ipo.companyName}
+        </Typography>
+        {ipo.isSme && <SmeChip />}
+      </Box>
+      <Typography variant="caption" sx={{ color: 'var(--fh-muted)' }}>{ipo.symbol} • {ipo.exchange}</Typography>
+    </Box>
+  );
+
+  const cardHeader = (ipo: IPO) => (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="h6" noWrap sx={{ fontWeight: 600, color: 'var(--fh-text)', fontSize: '1rem' }} title={ipo.companyName}>
+          {ipo.companyName}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)' }}>{ipo.symbol} • {ipo.exchange}</Typography>
+          {ipo.isSme && <SmeChip />}
+        </Box>
+      </Box>
+      <StatusChip status={ipo.status} />
+    </Box>
+  );
+
+  const nseButton = (label = 'View on NSE') => (
+    <Button
+      variant="outlined"
+      size="small"
+      href={NSE_IPO_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      endIcon={<OpenInNew sx={{ fontSize: '0.9rem !important' }} />}
+    >
+      {label}
+    </Button>
+  );
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={600}>
-          IPO
-        </Typography>
-        <Box display="flex" gap={2}>
-          <Chip
-            label={market === 'both' ? 'All Markets' : market === 'indian' ? 'Indian' : 'US'}
-            color="primary"
-            onClick={() => {
-              if (market === 'both') setMarket('indian');
-              else if (market === 'indian') setMarket('us');
-              else setMarket('both');
-            }}
-            clickable
-          />
-          <IconButton onClick={fetchIPOs} color="primary">
+      <Box
+        sx={{
+          display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 2, mb: { xs: 2, md: 3 },
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            IPO
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+            Mainboard and SME public issues on NSE
+          </Typography>
+        </Box>
+        <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+          {!notice && !isLoading && (
+            <Chip
+              size="small"
+              label="Live · NSE"
+              icon={<Box className="pulse-dot" sx={{ width: 6, height: 6, ml: '8px !important' }} />}
+              sx={{ color: 'var(--fh-up)', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}
+            />
+          )}
+          <IconButton onClick={fetchIPOs} color="primary" disabled={isLoading} aria-label="Refresh">
             <Refresh />
           </IconButton>
         </Box>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+      {notice && !isLoading && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 1.5, p: 2, mb: { xs: 2, md: 3 }, borderRadius: 3,
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+        }}>
+          <WarningAmber sx={{ color: 'var(--fh-warn)' }} />
+          <Typography variant="body2" sx={{ color: 'var(--fh-amber-text)', flex: 1 }}>{notice}</Typography>
+          <Button size="small" onClick={fetchIPOs} sx={{ color: 'var(--fh-warn)' }}>Retry</Button>
+        </Box>
+      )}
+
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 2, md: 3 } }}>
+        <Tabs
+          value={tabValue}
+          onChange={(_, newValue) => setTabValue(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           <Tab label="Calendar" />
-          <Tab label="Upcoming" />
-          <Tab label="Open Now" />
-          <Tab label="Listed" />
+          <Tab label={`Upcoming${upcoming.length ? ` (${upcoming.length})` : ''}`} />
+          <Tab label={`Open Now${open.length ? ` (${open.length})` : ''}`} />
+          <Tab label="Recent" />
         </Tabs>
       </Box>
 
       <TabPanel value={tabValue} index={0}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <Event color="info" />
-                  <Typography variant="h6">Upcoming IPOs</Typography>
-                </Box>
-                <Typography variant="h4" color="primary.main">
-                  {displayUpcoming.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Next 30 days
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+        {isLoading ? (
+          <>
+            <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 2, md: 3 } }}>
+              {[0, 1, 2].map(i => (
+                <Grid item xs={12} sm={6} md={4} key={i}><StatCardSkeleton /></Grid>
+              ))}
+            </Grid>
+            <TableSkeleton rows={6} columns={7} />
+          </>
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            {statCards.map(card => (
+              <Grid item xs={12} sm={6} md={4} key={card.label}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                      {card.icon}
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--fh-text)', fontSize: '1rem' }}>{card.label}</Typography>
+                    </Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: card.color }}>{card.value}</Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--fh-muted)' }}>{card.hint}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
 
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <Rocket color="success" />
-                  <Typography variant="h6">Open IPOs</Typography>
-                </Box>
-                <Typography variant="h4" color="success.main">
-                  {displayOpen.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Currently subscribing
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <TrendingUp color="primary" />
-                  <Typography variant="h6">Recent Listings</Typography>
-                </Box>
-                <Typography variant="h4" color="primary.main">
-                  {displayListed.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Last 30 days
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom fontWeight={600}>
-                  Recent IPO Activity
-                </Typography>
-                {isLoading ? (
-                  <LinearProgress />
-                ) : (
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Company</TableCell>
-                          <TableCell>Symbol</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Price Range</TableCell>
-                          <TableCell>Open Date</TableCell>
-                          <TableCell>Recommendation</TableCell>
-                          <TableCell align="center">Action</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {displayIPOs.slice(0, 5).map((ipo) => (
-                          <TableRow key={ipo.symbol} hover>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight={600}>
-                                {ipo.companyName}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {ipo.exchange}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{ipo.symbol}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={ipo.status}
-                                size="small"
-                                color={getStatusColor(ipo.status) as any}
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {ipo.offering.priceRange ? (
-                                <Typography variant="body2">
-                                  ₹{ipo.offering.priceRange.min} - ₹{ipo.offering.priceRange.max}
-                                </Typography>
-                              ) : ipo.offering.finalPrice ? (
-                                <Typography variant="body2">
-                                  ₹{ipo.offering.finalPrice}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2">-</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {ipo.timeline.openDate || '-'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              {ipo.analysis && (
-                                <Chip
-                                  label={ipo.analysis.recommendation}
-                                  size="small"
-                                  color={getRecommendationColor(ipo.analysis.recommendation) as any}
-                                  variant="outlined"
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell align="center">
-                              <IconButton
-                                size="small"
-                                onClick={() => getIPOAnalysis(ipo.symbol)}
-                              >
-                                <Visibility />
-                              </IconButton>
-                            </TableCell>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: 'var(--fh-text)' }}>
+                    IPO Calendar
+                  </Typography>
+                  {calendar.length === 0 ? (
+                    <Typography sx={{ color: 'var(--fh-text-3)', textAlign: 'center', py: 4 }}>No IPOs found</Typography>
+                  ) : (
+                    <TableContainer sx={{ overflowX: 'auto', borderRadius: 2, border: '1px solid rgba(148, 163, 184, 0.12)' }}>
+                      <Table size="small" sx={{ minWidth: 760 }}>
+                        <TableHead>
+                          <TableRow sx={{ '&:hover': { background: 'transparent' } }}>
+                            <TableCell sx={headCellSx}>Company</TableCell>
+                            <TableCell sx={headCellSx}>Status</TableCell>
+                            <TableCell sx={headCellSx}>Price Band</TableCell>
+                            <TableCell sx={headCellSx}>Bidding Dates</TableCell>
+                            <TableCell sx={headCellSx}>Lot Size</TableCell>
+                            <TableCell sx={headCellSx}>Listing Gain</TableCell>
+                            <TableCell sx={headCellSx} align="center">Details</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </CardContent>
-            </Card>
+                        </TableHead>
+                        <TableBody>
+                          {calendar.map((ipo) => (
+                            <TableRow key={ipo.symbol} hover>
+                              <TableCell sx={{ maxWidth: 280 }}>{nameCell(ipo)}</TableCell>
+                              <TableCell><StatusChip status={ipo.status} /></TableCell>
+                              <TableCell sx={{ whiteSpace: 'nowrap', color: 'var(--fh-text)' }}>{formatPrice(ipo)}</TableCell>
+                              <TableCell sx={{ whiteSpace: 'nowrap', color: 'var(--fh-text-2)' }}>{formatDateRange(ipo)}</TableCell>
+                              <TableCell sx={{ color: 'var(--fh-text-2)' }}>{ipo.offering.lotSize ?? '-'}</TableCell>
+                              <TableCell><GainText value={ipo.listing?.gainPercent} /></TableCell>
+                              <TableCell align="center">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setSelectedIPO(ipo)}
+                                  sx={{ color: 'var(--fh-text-3)', '&:hover': { color: '#6366f1' } }}
+                                  aria-label={`View details for ${ipo.companyName}`}
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Grid container spacing={3}>
-          {displayUpcoming.map((ipo) => (
-            <Grid item xs={12} md={6} lg={4} key={ipo.symbol}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom fontWeight={600}>
-                    {ipo.companyName}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {ipo.symbol} • {ipo.exchange}
-                  </Typography>
-                  
-                  <Box display="flex" flexDirection="column" gap={1} mb={2}>
-                    <Typography variant="body2">
-                      <strong>Price Range:</strong> ₹{ipo.offering.priceRange?.min} - ₹{ipo.offering.priceRange?.max}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Open Date:</strong> {ipo.timeline.openDate}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Close Date:</strong> {ipo.timeline.closeDate}
-                    </Typography>
-                  </Box>
-
-                  {ipo.analysis && (
-                    <Box>
-                      <Chip
-                        label={ipo.analysis.recommendation}
-                        size="small"
-                        color={getRecommendationColor(ipo.analysis.recommendation) as any}
-                        sx={{ mb: 1 }}
-                      />
-                      <Box display="flex" gap={0.5}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <span key={star} style={{ color: star <= ipo.analysis!.rating ? '#ffc107' : '#e0e0e0' }}>
-                            ★
-                          </span>
-                        ))}
-                      </Box>
+        {isLoading ? (
+          <CardGridSkeleton count={6} height={190} />
+        ) : upcoming.length === 0 ? (
+          <EmptyState text="No upcoming IPOs announced on NSE right now" />
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            {upcoming.map((ipo) => (
+              <Grid item xs={12} sm={6} lg={4} key={ipo.symbol}>
+                <Card sx={{ height: '100%', cursor: 'pointer' }} onClick={() => setSelectedIPO(ipo)}>
+                  <CardContent>
+                    {cardHeader(ipo)}
+                    <Box display="flex" flexDirection="column" gap={0.75}>
+                      <DetailRow label="Price band">{formatPrice(ipo)}</DetailRow>
+                      <DetailRow label="Bidding">{formatDateRange(ipo)}</DetailRow>
+                      {ipo.offering.lotSize && <DetailRow label="Lot size">{ipo.offering.lotSize} shares</DetailRow>}
+                      {minInvestment(ipo) && <DetailRow label="Min. investment">{inr(minInvestment(ipo)!)}</DetailRow>}
                     </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
-        <Grid container spacing={3}>
-          {displayOpen.map((ipo) => (
-            <Grid item xs={12} md={6} key={ipo.symbol}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom fontWeight={600}>
-                    {ipo.companyName}
-                  </Typography>
-                  
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">
-                        <strong>Subscription:</strong>
-                      </Typography>
-                      {ipo.subscription && (
-                        <Box mt={1}>
-                          <Typography variant="body2">
-                            Retail: {ipo.subscription.retail?.percentage}%
-                          </Typography>
-                          <Typography variant="body2">
-                            Total: {ipo.subscription.total?.percentage}%
-                          </Typography>
-                        </Box>
-                      )}
-                    </Grid>
-                    <Grid item xs={6}>
-                      <ResponsiveContainer width="100%" height={100}>
-                        <PieChart>
-                          <Pie
-                            data={subscriptionData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={25}
-                            outerRadius={40}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {subscriptionData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </Grid>
-                  </Grid>
-
-                  <Box mt={2}>
-                    <Button variant="contained" fullWidth>
-                      Apply Now
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        {isLoading ? (
+          <CardGridSkeleton count={4} height={220} />
+        ) : open.length === 0 ? (
+          <EmptyState text="No IPOs are open for bidding right now" />
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            {open.map((ipo) => (
+              <Grid item xs={12} md={6} key={ipo.symbol}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    {cardHeader(ipo)}
+                    <Box display="flex" flexDirection="column" gap={0.75} mb={2}>
+                      <DetailRow label="Price band">{formatPrice(ipo)}</DetailRow>
+                      <DetailRow label="Closes">{formatDate(ipo.timeline.closeDate)}</DetailRow>
+                      {ipo.offering.lotSize && <DetailRow label="Lot size">{ipo.offering.lotSize} shares</DetailRow>}
+                      {minInvestment(ipo) && <DetailRow label="Min. investment">{inr(minInvestment(ipo)!)}</DetailRow>}
+                    </Box>
+                    <Typography variant="caption" sx={{ display: 'block', color: 'var(--fh-muted)', mb: 1.5 }}>
+                      Apply through your broker's IPO section or your bank's ASBA / UPI.
+                    </Typography>
+                    {nseButton('Issue details on NSE')}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={3}>
-        <Grid container spacing={3}>
-          {displayListed.map((ipo) => (
-            <Grid item xs={12} md={6} key={ipo.symbol}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom fontWeight={600}>
-                    {ipo.companyName}
-                  </Typography>
-                  
-                  {ipo.listing && (
-                    <Box display="flex" flexDirection="column" gap={1}>
-                      <Typography variant="body2">
-                        <strong>Listing Price:</strong> ₹{ipo.listing.listingPrice}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Current Price:</strong> ₹{ipo.listing.currentPrice}
-                      </Typography>
-                      <Typography variant="body2" color="success.main">
-                        <strong>Listing Gain:</strong> +{ipo.listing.listingGainPercentage}%
-                      </Typography>
+        {isLoading ? (
+          <CardGridSkeleton count={4} height={150} />
+        ) : recent.length === 0 ? (
+          <EmptyState text="No IPOs closed or listed in the last 60 days" />
+        ) : (
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            {recent.map((ipo) => (
+              <Grid item xs={12} sm={6} lg={4} key={ipo.symbol}>
+                <Card sx={{ height: '100%', cursor: 'pointer' }} onClick={() => setSelectedIPO(ipo)}>
+                  <CardContent>
+                    {cardHeader(ipo)}
+                    <Box display="flex" flexDirection="column" gap={0.75}>
+                      <DetailRow label="Issue price">{formatPrice(ipo)}</DetailRow>
+                      {ipo.status === 'listed'
+                        ? <DetailRow label="Listed on">{formatDate(ipo.timeline.listingDate)}</DetailRow>
+                        : <DetailRow label="Bidding closed">{formatDate(ipo.timeline.closeDate)}</DetailRow>}
+                      {ipo.listing && (
+                        <>
+                          <DetailRow label="Current price">{inr(ipo.listing.currentPrice)}</DetailRow>
+                          <DetailRow label="Gain vs issue"><GainText value={ipo.listing.gainPercent} /></DetailRow>
+                        </>
+                      )}
                     </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedIPO?.companyName}</DialogTitle>
-        <DialogContent>
-          {selectedIPO && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  IPO Details
-                </Typography>
-                <Box display="flex" flexDirection="column" gap={1}>
-                  <Typography variant="body2">
-                    <strong>Symbol:</strong> {selectedIPO.symbol}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Exchange:</strong> {selectedIPO.exchange}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Total Issue Size:</strong> ₹{(selectedIPO.offering.totalAmount / 10000000).toFixed(1)} Cr
-                  </Typography>
-                </Box>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  Analysis
-                </Typography>
-                {selectedIPO.analysis && (
-                  <Box>
-                    <Chip
-                      label={selectedIPO.analysis.recommendation}
-                      color={getRecommendationColor(selectedIPO.analysis.recommendation) as any}
-                      sx={{ mb: 1 }}
-                    />
-                    <Typography variant="body2" gutterBottom>
-                      <strong>Pros:</strong>
-                    </Typography>
-                    <ul>
-                      {selectedIPO.analysis.pros.map((pro, index) => (
-                        <li key={index}>{pro}</li>
-                      ))}
-                    </ul>
-                    <Typography variant="body2" gutterBottom>
-                      <strong>Cons:</strong>
-                    </Typography>
-                    <ul>
-                      {selectedIPO.analysis.cons.map((con, index) => (
-                        <li key={index}>{con}</li>
-                      ))}
-                    </ul>
-                  </Box>
-                )}
-              </Grid>
-            </Grid>
-          )}
-        </DialogContent>
-      </Dialog>
+      <IPODetailsDialog ipo={selectedIPO} onClose={() => setSelectedIPO(null)} />
     </Box>
   );
 };
 
-export default IPO;
+export default IPOPage;

@@ -34,10 +34,12 @@ import {
   Explore,
   CheckCircle,
   Info,
+  Refresh,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { CardGridSkeleton, TableSkeleton } from '../../components/Skeletons/Skeletons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,9 +108,9 @@ const formatCurrency = (v: number) =>
   }).format(v);
 
 const healthColor = (score: number) => {
-  if (score >= 70) return '#4CAF50';
-  if (score >= 40) return '#FF9800';
-  return '#F44336';
+  if (score >= 70) return 'var(--fh-up)';
+  if (score >= 40) return 'var(--fh-warn)';
+  return 'var(--fh-down)';
 };
 
 const riskLabel = (score: number) => {
@@ -141,11 +143,17 @@ const SuggestionIcon: React.FC<{ type: SuggestionType }> = ({ type }) => {
 };
 
 const SuggestionTypeColor: Record<SuggestionType, string> = {
-  diversification: '#9C27B0',
-  risk: '#F44336',
-  profit: '#4CAF50',
-  rebalance: '#2196F3',
-  general: '#FF9800',
+  diversification: '#a855f7',
+  risk: 'var(--fh-down)',
+  profit: 'var(--fh-up)',
+  rebalance: 'var(--fh-info)',
+  general: 'var(--fh-warn)',
+};
+
+const PRIORITY_BORDER: Record<'error' | 'warning' | 'success', string> = {
+  error: 'rgba(244,63,94,0.35)',
+  warning: 'rgba(245,158,11,0.35)',
+  success: 'rgba(16,185,129,0.35)',
 };
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -164,7 +172,7 @@ interface TabPanelProps {
 }
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 3 }}>
+  <Box role="tabpanel" hidden={value !== index} sx={{ pt: { xs: 1, md: 2 } }}>
     {value === index && children}
   </Box>
 );
@@ -182,10 +190,10 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
   const risk = riskLabel(riskScore);
 
   return (
-    <Card sx={{ mb: 4 }}>
+    <Card sx={{ mb: { xs: 2, md: 3 } }}>
       <CardContent>
-        <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} sm="auto">
+        <Grid container spacing={{ xs: 2, md: 3 }} alignItems="center">
+          <Grid item xs={12} sm="auto" sx={{ display: 'flex', justifyContent: 'center' }}>
             <Box
               position="relative"
               display="inline-flex"
@@ -201,7 +209,7 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
                     value={100}
                     size={140}
                     thickness={5}
-                    sx={{ color: 'grey.200', position: 'absolute' }}
+                    sx={{ color: 'rgba(148,163,184,0.15)', position: 'absolute' }}
                   />
                   <CircularProgress
                     variant="determinate"
@@ -227,10 +235,17 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
               )}
             </Box>
           </Grid>
-          <Grid item xs={12} sm>
-            <Typography variant="h6" fontWeight={700} mb={0.5}>
+          <Grid item xs={12} sm sx={{ minWidth: 0 }}>
+            <Typography variant="h6" fontWeight={700} mb={0.5} sx={{ color: 'var(--fh-text)' }}>
               Portfolio Health Score
             </Typography>
+            {isLoading ? (
+              <>
+                <Skeleton variant="text" sx={{ fontSize: '0.9rem', width: '80%', mb: 2 }} />
+                <Skeleton variant="rounded" width={220} height={24} />
+              </>
+            ) : (
+            <>
             <Typography variant="body2" color="text.secondary" mb={2}>
               {score >= 70
                 ? 'Your portfolio is well-balanced and performing strongly.'
@@ -238,8 +253,8 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
                 ? 'There are some areas to improve for better returns.'
                 : 'Your portfolio needs attention. Review the suggestions below.'}
             </Typography>
-            <Box display="flex" alignItems="center" gap={1}>
-              <Shield sx={{ color: risk.color === 'error' ? '#F44336' : risk.color === 'warning' ? '#FF9800' : '#4CAF50' }} />
+            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+              <Shield sx={{ color: risk.color === 'error' ? 'var(--fh-down)' : risk.color === 'warning' ? 'var(--fh-warn)' : 'var(--fh-up)' }} />
               <Typography variant="body2" fontWeight={600}>Risk Score:</Typography>
               <Chip
                 label={risk.label}
@@ -251,9 +266,11 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
                 ({riskScore}/100)
               </Typography>
             </Box>
+            </>
+            )}
           </Grid>
-          <Grid item xs={12} sm="auto">
-            <Box display="flex" flexDirection="column" gap={1} minWidth={200}>
+          <Grid item xs={12} md="auto">
+            <Box display="flex" flexDirection="column" gap={1} sx={{ minWidth: { xs: 0, md: 240 } }}>
               {[
                 { label: 'Diversification', pct: Math.min(score + 10, 100) },
                 { label: 'Risk Management', pct: Math.max(100 - riskScore, 20) },
@@ -262,14 +279,15 @@ const HealthRing: React.FC<HealthRingProps> = ({ score, riskScore, isLoading }) 
                 <Box key={metric.label}>
                   <Box display="flex" justifyContent="space-between" mb={0.3}>
                     <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
-                    <Typography variant="caption" fontWeight={600}>{metric.pct}%</Typography>
+                    <Typography variant="caption" fontWeight={600}>{isLoading ? '—' : `${metric.pct}%`}</Typography>
                   </Box>
                   <LinearProgress
-                    variant="determinate"
+                    variant={isLoading ? 'indeterminate' : 'determinate'}
                     value={metric.pct}
                     sx={{
                       height: 5,
                       borderRadius: 3,
+                      backgroundColor: 'rgba(148,163,184,0.15)',
                       '& .MuiLinearProgress-bar': {
                         backgroundColor: healthColor(metric.pct),
                       },
@@ -325,13 +343,32 @@ const Optimization: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Box mb={3}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Portfolio Optimizer
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          AI-powered suggestions to maximize your returns and minimize risk.
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--fh-text)', fontSize: { xs: '1.6rem', md: '2.125rem' } }}>
+            Portfolio Optimizer
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--fh-muted)', mt: 0.5 }}>
+            AI-powered suggestions to maximize your returns and minimize risk.
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={() => refetch()}
+          disabled={isLoading}
+        >
+          Refresh
+        </Button>
       </Box>
 
       {/* Health Score */}
@@ -343,9 +380,10 @@ const Optimization: React.FC = () => {
           <Tabs
             value={activeTab}
             onChange={(_, v) => setActiveTab(v)}
-            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+            sx={{ borderBottom: 1, borderColor: 'divider', px: { xs: 0, sm: 2 } }}
             variant="scrollable"
             scrollButtons="auto"
+            allowScrollButtonsMobile
           >
             <Tab label={`Suggestions${suggestions.length ? ` (${suggestions.length})` : ''}`} />
             <Tab label="Rebalancing" />
@@ -353,7 +391,7 @@ const Optimization: React.FC = () => {
             <Tab label="Opportunities" />
           </Tabs>
 
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
             {/* ── Error ──────────────────────────────────────────────────────── */}
             {isError && (
               <Alert severity="error" action={
@@ -366,13 +404,7 @@ const Optimization: React.FC = () => {
             {/* ── Tab 0: Suggestions ─────────────────────────────────────────── */}
             <TabPanel value={activeTab} index={0}>
               {isLoading ? (
-                <Grid container spacing={2}>
-                  {[1, 2, 3, 4].map((i) => (
-                    <Grid item xs={12} sm={6} key={i}>
-                      <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 2 }} />
-                    </Grid>
-                  ))}
-                </Grid>
+                <CardGridSkeleton count={4} height={200} />
               ) : suggestions.length === 0 ? (
                 <Box textAlign="center" py={6}>
                   <CheckCircle sx={{ fontSize: 56, color: 'success.main', mb: 1 }} />
@@ -382,28 +414,27 @@ const Optimization: React.FC = () => {
                   </Typography>
                 </Box>
               ) : (
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
                   {suggestions.map((s) => {
                     const { color, label } = priorityConfig[s.priority];
                     const iconColor = SuggestionTypeColor[s.type];
                     return (
-                      <Grid item xs={12} sm={6} key={s._id}>
+                      <Grid item xs={12} md={6} xl={4} key={s._id}>
                         <Card
                           variant="outlined"
                           sx={{
                             height: '100%',
-                            borderColor: color === 'error' ? '#FFCDD2' :
-                              color === 'warning' ? '#FFE0B2' : '#C8E6C9',
+                            borderColor: PRIORITY_BORDER[color],
                           }}
                         >
-                          <CardContent>
+                          <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                             <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
                               <Box
                                 sx={{
                                   width: 44,
                                   height: 44,
                                   borderRadius: 2,
-                                  backgroundColor: iconColor + '20',
+                                  backgroundColor: `color-mix(in srgb, ${iconColor} 13%, transparent)`,
                                   color: iconColor,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -414,16 +445,16 @@ const Optimization: React.FC = () => {
                               </Box>
                               <Chip label={label} size="small" color={color} />
                             </Box>
-                            <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                            <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: 'var(--fh-text)' }}>
                               {s.title}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" mb={2}>
+                            <Typography variant="body2" color="text.secondary" mb={2} sx={{ flex: 1 }}>
                               {s.description}
                             </Typography>
                             <Divider sx={{ mb: 1.5 }} />
-                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
                               <Box display="flex" alignItems="center" gap={0.5}>
-                                <TrendingUp sx={{ color: '#4CAF50', fontSize: 16 }} />
+                                <TrendingUp sx={{ color: 'var(--fh-up)', fontSize: 16 }} />
                                 <Typography variant="body2" color="success.main" fontWeight={600}>
                                   +{s.potentialImpact}% potential impact
                                 </Typography>
@@ -444,7 +475,7 @@ const Optimization: React.FC = () => {
             {/* ── Tab 1: Rebalancing ─────────────────────────────────────────── */}
             <TabPanel value={activeTab} index={1}>
               {isLoading ? (
-                <Skeleton variant="rectangular" height={300} />
+                <TableSkeleton rows={5} columns={6} title={false} />
               ) : rebalancing.length === 0 ? (
                 <Box textAlign="center" py={6}>
                   <CheckCircle sx={{ fontSize: 56, color: 'success.main', mb: 1 }} />
@@ -467,12 +498,16 @@ const Optimization: React.FC = () => {
                       </Button>
                     </Tooltip>
                   </Box>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
+                  <TableContainer
+                    component={Paper}
+                    variant="outlined"
+                    sx={{ overflowX: 'auto', backgroundColor: 'transparent', backgroundImage: 'none' }}
+                  >
+                    <Table size="small" sx={{ minWidth: { xs: 520, md: 720 } }}>
                       <TableHead>
-                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                        <TableRow sx={{ backgroundColor: 'rgba(148,163,184,0.06)' }}>
                           <TableCell><strong>Symbol</strong></TableCell>
-                          <TableCell><strong>Name</strong></TableCell>
+                          <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Name</strong></TableCell>
                           <TableCell align="right"><strong>Current %</strong></TableCell>
                           <TableCell align="right"><strong>Suggested %</strong></TableCell>
                           <TableCell align="center"><strong>Action</strong></TableCell>
@@ -488,14 +523,14 @@ const Optimization: React.FC = () => {
                               <TableCell>
                                 <Typography variant="body2" fontWeight={700}>{row.symbol}</Typography>
                               </TableCell>
-                              <TableCell>
+                              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                                 <Typography variant="body2">{row.name}</Typography>
                               </TableCell>
                               <TableCell align="right">
                                 <Typography variant="body2">{row.currentPercent.toFixed(1)}%</Typography>
                               </TableCell>
                               <TableCell align="right">
-                                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5} sx={{ whiteSpace: 'nowrap' }}>
                                   <Typography variant="body2" fontWeight={600}>
                                     {row.suggestedPercent.toFixed(1)}%
                                   </Typography>
@@ -512,7 +547,7 @@ const Optimization: React.FC = () => {
                               <TableCell align="center">
                                 <Chip label={label} size="small" color={color} />
                               </TableCell>
-                              <TableCell>
+                              <TableCell sx={{ minWidth: 180 }}>
                                 <Typography variant="caption" color="text.secondary">
                                   {row.reason}
                                 </Typography>
@@ -530,13 +565,7 @@ const Optimization: React.FC = () => {
             {/* ── Tab 2: Tax Optimizer ───────────────────────────────────────── */}
             <TabPanel value={activeTab} index={2}>
               {isLoading ? (
-                <Grid container spacing={2}>
-                  {[1, 2, 3].map((i) => (
-                    <Grid item xs={12} sm={6} key={i}>
-                      <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 2 }} />
-                    </Grid>
-                  ))}
-                </Grid>
+                <CardGridSkeleton count={3} height={220} />
               ) : taxOpportunities.length === 0 ? (
                 <Box textAlign="center" py={6}>
                   <MonetizationOn sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
@@ -551,15 +580,15 @@ const Optimization: React.FC = () => {
                   <Alert severity="info" sx={{ mb: 3 }} icon={<MonetizationOn />}>
                     <strong>Potential Total Tax Saving: {formatCurrency(totalTaxSaving)}</strong> — Review the opportunities below.
                   </Alert>
-                  <Grid container spacing={2}>
+                  <Grid container spacing={{ xs: 2, md: 3 }}>
                     {taxOpportunities.map((opp) => {
                       const isLoss = opp.unrealizedGainLoss < 0;
                       return (
-                        <Grid item xs={12} sm={6} key={opp._id}>
-                          <Card variant="outlined">
+                        <Grid item xs={12} sm={6} lg={4} key={opp._id}>
+                          <Card variant="outlined" sx={{ height: '100%' }}>
                             <CardContent>
-                              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" fontWeight={700}>{opp.symbol}</Typography>
+                              <Box display="flex" justifyContent="space-between" alignItems="center" gap={1} mb={1.5}>
+                                <Typography variant="h6" fontWeight={700} noWrap sx={{ color: 'var(--fh-text)', minWidth: 0 }}>{opp.symbol}</Typography>
                                 <Chip
                                   label={isLoss ? 'Harvest Loss' : 'Book Gains'}
                                   size="small"
@@ -614,13 +643,7 @@ const Optimization: React.FC = () => {
             {/* ── Tab 3: Opportunities ───────────────────────────────────────── */}
             <TabPanel value={activeTab} index={3}>
               {isLoading ? (
-                <Grid container spacing={2}>
-                  {[1, 2, 3, 4].map((i) => (
-                    <Grid item xs={12} sm={6} key={i}>
-                      <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
-                    </Grid>
-                  ))}
-                </Grid>
+                <CardGridSkeleton count={6} height={220} />
               ) : opportunities.length === 0 ? (
                 <Box textAlign="center" py={6}>
                   <Explore sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
@@ -630,30 +653,31 @@ const Optimization: React.FC = () => {
                   </Typography>
                 </Box>
               ) : (
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
                   {opportunities.map((opp) => {
-                    const upColor = opp.upsidePercent >= 20 ? '#4CAF50' : opp.upsidePercent >= 10 ? '#2196F3' : '#FF9800';
+                    const upColor = opp.upsidePercent >= 20 ? 'var(--fh-up)' : opp.upsidePercent >= 10 ? 'var(--fh-info)' : 'var(--fh-warn)';
                     const upLabel = opp.upsidePercent >= 20 ? 'Strong Buy' : opp.upsidePercent >= 10 ? 'Buy' : 'Watch';
                     return (
-                      <Grid item xs={12} sm={6} md={4} key={opp._id}>
+                      <Grid item xs={12} sm={6} lg={4} xl={3} key={opp._id}>
                         <Card
                           variant="outlined"
                           sx={{
-                            borderColor: upColor + '60',
-                            '&:hover': { boxShadow: 3 },
-                            transition: 'box-shadow 0.2s',
+                            height: '100%',
+                            borderColor: `color-mix(in srgb, ${upColor} 38%, transparent)`,
+                            '&:hover': { borderColor: upColor },
+                            transition: 'border-color 0.2s',
                           }}
                         >
                           <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                              <Box>
-                                <Typography variant="h6" fontWeight={700}>{opp.symbol}</Typography>
-                                <Typography variant="caption" color="text.secondary">{opp.name}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1} mb={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="h6" fontWeight={700} noWrap sx={{ color: 'var(--fh-text)' }}>{opp.symbol}</Typography>
+                                <Typography variant="caption" color="text.secondary" noWrap component="div">{opp.name}</Typography>
                               </Box>
                               <Chip
                                 label={upLabel}
                                 size="small"
-                                sx={{ backgroundColor: upColor, color: 'white', fontWeight: 700 }}
+                                sx={{ backgroundColor: upColor, color: 'white', fontWeight: 700, flexShrink: 0 }}
                               />
                             </Box>
 
@@ -680,7 +704,7 @@ const Optimization: React.FC = () => {
                               gap={0.5}
                               p={1}
                               borderRadius={1}
-                              sx={{ backgroundColor: upColor + '15', mb: 1.5 }}
+                              sx={{ backgroundColor: `color-mix(in srgb, ${upColor} 8%, transparent)`, mb: 1.5 }}
                             >
                               <TrendingUp sx={{ color: upColor, fontSize: 18 }} />
                               <Typography variant="body2" fontWeight={700} sx={{ color: upColor }}>
