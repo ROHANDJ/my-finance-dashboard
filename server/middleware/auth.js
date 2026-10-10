@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const getJwtSecret = require('../lib/jwtSecret');
 
 const auth = (req, res, next) => {
   try {
@@ -8,7 +9,7 @@ const auth = (req, res, next) => {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'demo_secret');
+    const decoded = jwt.verify(token, getJwtSecret());
     req.userId = decoded.userId;
     next();
   } catch (error) {

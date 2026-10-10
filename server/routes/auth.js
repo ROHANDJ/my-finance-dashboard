@@ -1,8 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
+const getJwtSecret = require('../lib/jwtSecret');
+const { isMailConfigured, sendMail } = require('../lib/mailer');
 const router = express.Router();
 
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 12;
@@ -25,20 +29,110 @@ function userToJSON(u) {
 }
 
 // ---------------------------------------------------------------------------
+// Validation + helpers
+// ---------------------------------------------------------------------------
+const EMAIL_RE    = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/;
+const PHONE_RE    = /^[0-9]{10}$/;
+const PAN_RE      = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const MIN_PASSWORD = 6;
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 min
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts, please try again in a few minutes' },
+});
+
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many reset requests, please try again later' },
+});
+
+const isValidEmail = (v) => typeof v === 'string' && EMAIL_RE.test(v);
+const isValidPassword = (v) => typeof v === 'string' && v.length >= MIN_PASSWORD;
+
+function signToken(userId) {
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: '7d' });
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Base URL used in reset-password links. Never derived from request headers,
+// since a spoofed Host header would let an attacker redirect the reset link.
+function getAppUrl() {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  return 'http://localhost:3000';
+}
+
+function resetEmail(name, link) {
+  const text =
+    `Hi ${name},\n\n` +
+    `We received a request to reset your FinanceHub password. Open the link below to choose a new one:\n\n` +
+    `${link}\n\n` +
+    `This link expires in 30 minutes and can only be used once. ` +
+    `If you didn't request this, you can ignore this email — your password won't change.`;
+
+  const html = `
+  <div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1e293b">
+    <h2 style="margin:0 0 16px;color:#4f46e5">Reset your password</h2>
+    <p>Hi ${name},</p>
+    <p>We received a request to reset your FinanceHub password. Click the button below to choose a new one.</p>
+    <p style="margin:28px 0">
+      <a href="${link}" style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a>
+    </p>
+    <p style="font-size:13px;color:#64748b">This link expires in 30 minutes and can only be used once.
+    If you didn't request this, ignore this email — your password won't change.</p>
+    <p style="font-size:12px;color:#94a3b8;word-break:break-all">${link}</p>
+  </div>`;
+
+  return { text, html };
+}
+
+// ---------------------------------------------------------------------------
 // POST /register
 // ---------------------------------------------------------------------------
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, phone, panCard } = req.body;
+    const { username, email, password, firstName, lastName, phone } = req.body;
+    const panCard = typeof req.body.panCard === 'string' ? req.body.panCard.trim().toUpperCase() : '';
 
+    if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+      return res.status(400).json({ message: 'Username must be 3-30 letters, numbers or underscores' });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+    if (!isValidPassword(password)) {
+      return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+    if (phone && !PHONE_RE.test(phone)) {
+      return res.status(400).json({ message: 'Phone number must be 10 digits' });
+    }
+    if (panCard && !PAN_RE.test(panCard)) {
+      return res.status(400).json({ message: 'Invalid PAN card format' });
+    }
+
+    // Values are validated above, so they can't inject extra filter clauses.
     let orClause = `email.eq.${email.toLowerCase()},username.eq.${username}`;
-    if (panCard) orClause += `,pan_card.eq.${panCard.toUpperCase()}`;
+    if (panCard) orClause += `,pan_card.eq.${panCard}`;
 
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from('users')
       .select('id')
       .or(orClause)
       .limit(1);
+
+    if (lookupError) throw lookupError;
 
     if (existing && existing.length > 0) {
       return res.status(400).json({ message: 'User with this email, username, or PAN card already exists' });
@@ -55,20 +149,14 @@ router.post('/register', async (req, res) => {
         first_name: firstName || '',
         last_name: lastName || '',
         phone: phone || '',
-        pan_card: panCard ? panCard.toUpperCase() : ''
+        pan_card: panCard
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET || 'demo_secret',
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({ message: 'User registered successfully', token, user: userToJSON(user) });
+    res.status(201).json({ message: 'User registered successfully', token: signToken(user.id), user: userToJSON(user) });
   } catch (error) {
     console.error('Registration error:', error);
     if (error.code === '23505') {
@@ -81,15 +169,22 @@ router.post('/register', async (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /login
 // ---------------------------------------------------------------------------
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const { data: user } = await supabase
+    if (!isValidEmail(email) || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const { data: user, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email.toLowerCase())
       .maybeSingle();
+
+    // Without this, a database outage looked like "No account found".
+    if (error) throw error;
 
     if (!user) {
       return res.status(401).json({ message: 'No account found with this email' });
@@ -109,16 +204,108 @@ router.post('/login', async (req, res) => {
       .update({ last_login: new Date().toISOString() })
       .eq('id', user.id);
 
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET || 'demo_secret',
-      { expiresIn: '7d' }
-    );
-
-    res.json({ message: 'Login successful', token, user: userToJSON(user) });
+    res.json({ message: 'Login successful', token: signToken(user.id), user: userToJSON(user) });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /forgot-password — emails a single-use reset link.
+// Always answers the same way whether or not the email exists, so it can't
+// be used to discover which emails have accounts.
+// ---------------------------------------------------------------------------
+router.post('/forgot-password', resetLimiter, async (req, res) => {
+  const genericResponse = { message: 'If an account exists for that email, a reset link has been sent.' };
+
+  try {
+    const { email } = req.body;
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    if (!isMailConfigured()) {
+      console.error('Forgot password: EMAIL_HOST / EMAIL_USER / EMAIL_PASS are not set');
+      return res.status(503).json({ message: 'Password reset email is not available right now' });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, first_name, username, is_active')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!user || !user.is_active) return res.json(genericResponse);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        reset_token_hash: hashResetToken(token),
+        reset_token_expires: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) throw updateError;
+
+    const link = `${getAppUrl()}/reset-password?token=${token}`;
+    const { text, html } = resetEmail(user.first_name || user.username, link);
+
+    // Awaited on purpose: serverless functions freeze once the response is sent.
+    await sendMail({ to: user.email, subject: 'Reset your FinanceHub password', text, html });
+
+    res.json(genericResponse);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Could not send reset email, please try again' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /reset-password — sets a new password using the emailed token.
+// ---------------------------------------------------------------------------
+router.post('/reset-password', resetLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+      return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+    }
+    if (!isValidPassword(password)) {
+      return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, reset_token_expires')
+      .eq('reset_token_hash', hashResetToken(token))
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!user || !user.reset_token_expires || new Date(user.reset_token_expires) < new Date()) {
+      return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+    }
+
+    const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password_hash,
+        reset_token_hash: null,
+        reset_token_expires: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) throw updateError;
+
+    res.json({ message: 'Password has been reset. You can now sign in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error resetting password' });
   }
 });
 
@@ -167,13 +354,7 @@ router.post('/dev-login', async (req, res) => {
       .update({ last_login: new Date().toISOString() })
       .eq('id', user.id);
 
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET || 'demo_secret',
-      { expiresIn: '7d' }
-    );
-
-    res.json({ message: 'Dev login successful', token, user: userToJSON(user) });
+    res.json({ message: 'Dev login successful', token: signToken(user.id), user: userToJSON(user) });
   } catch (error) {
     console.error('Dev login error:', error);
     res.status(500).json({ message: 'Server error during dev login' });
@@ -239,6 +420,10 @@ router.put('/profile', auth, async (req, res) => {
 router.post('/change-password', auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    if (typeof currentPassword !== 'string' || !isValidPassword(newPassword)) {
+      return res.status(400).json({ message: `New password must be at least ${MIN_PASSWORD} characters` });
+    }
 
     const { data: user } = await supabase
       .from('users').select('password_hash').eq('id', req.userId).maybeSingle();

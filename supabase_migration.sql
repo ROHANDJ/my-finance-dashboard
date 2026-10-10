@@ -77,15 +77,21 @@ CREATE TABLE IF NOT EXISTS credit_cards (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Password reset (token stored as SHA-256 hash, never in plain text)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ;
+
 -- Indexes for fast lookups
+CREATE INDEX IF NOT EXISTS idx_users_reset_token_hash ON users(reset_token_hash);
 CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_user_id_date ON expenses(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_expenses_user_id_category ON expenses(user_id, category);
 CREATE INDEX IF NOT EXISTS idx_credit_cards_user_id ON credit_cards(user_id);
 
--- Disable RLS (server uses service_role key which bypasses it anyway)
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE brokerage_accounts DISABLE ROW LEVEL SECURITY;
-ALTER TABLE portfolios DISABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses DISABLE ROW LEVEL SECURITY;
-ALTER TABLE credit_cards DISABLE ROW LEVEL SECURITY;
+-- Enable RLS with no policies: the anon/authenticated keys get no access,
+-- while the server's service_role key bypasses RLS and works as normal.
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE brokerage_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portfolios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credit_cards ENABLE ROW LEVEL SECURITY;
